@@ -48,6 +48,10 @@ export function CameraTile({
 
   // Process frames for activity detection
   useEffect(() => {
+    // Skip processing if cross-origin videos (CORS issues)
+    if (feed.videoUrl && feed.videoUrl.startsWith("http") && !feed.videoUrl.includes(window.location.origin)) {
+      return
+    }
     if (!videoRef.current || !canvasRef.current) return
 
     const video = videoRef.current
@@ -58,39 +62,53 @@ export function CameraTile({
     const processFrame = () => {
       if (!video.readyState || video.paused) return
 
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      ctx.drawImage(video, 0, 0)
+      try {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
 
-      const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height)
-
-      if (lastFrameRef.current) {
-        // Calculate activity score from frame difference
-        const activity = calculateFrameDifference(lastFrameRef.current, currentFrame)
-
-        onUpdateMetrics(feed.id, {
-          activity,
-          latency: Math.floor(Math.random() * 10 + 10),
-          signalRate: activity > 15 ? Math.floor(activity / 5) : 0,
-        })
-
-        // Generate incidents based on activity
-        if (activity > 30 && Math.random() > 0.95) {
-          const incident: Incident = {
-            id: crypto.randomUUID(),
-            feedId: feed.id,
-            feedName: feed.name,
-            severity: activity > 50 ? "high" : activity > 40 ? "medium" : "low",
-            timestamp: new Date(),
-            confidence: Math.floor(activity + Math.random() * 20),
-            description: `Motion detected - Activity level: ${Math.floor(activity)}%`,
-            status: "open",
-          }
-          onAddIncident(incident)
+        // Try to get image data, but catch CORS errors
+        let currentFrame: ImageData | null = null
+        try {
+          currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        } catch (error) {
+          // CORS error - skip frame processing for cross-origin videos
+          return
         }
-      }
 
-      lastFrameRef.current = currentFrame
+        if (currentFrame && lastFrameRef.current) {
+          // Calculate activity score from frame difference
+          const activity = calculateFrameDifference(lastFrameRef.current, currentFrame)
+
+          onUpdateMetrics(feed.id, {
+            activity,
+            latency: Math.floor(Math.random() * 10 + 10),
+            signalRate: activity > 15 ? Math.floor(activity / 5) : 0,
+          })
+
+          // Generate incidents based on activity
+          if (activity > 30 && Math.random() > 0.95) {
+            const incident: Incident = {
+              id: crypto.randomUUID(),
+              feedId: feed.id,
+              feedName: feed.name,
+              severity: activity > 50 ? "high" : activity > 40 ? "medium" : "low",
+              timestamp: new Date(),
+              confidence: Math.floor(activity + Math.random() * 20),
+              description: `Motion detected - Activity level: ${Math.floor(activity)}%`,
+              status: "open",
+            }
+            onAddIncident(incident)
+          }
+        }
+
+        if (currentFrame) {
+          lastFrameRef.current = currentFrame
+        }
+      } catch (error) {
+        // Silently handle any errors during frame processing
+        console.debug("Frame processing error:", error)
+      }
     }
 
     processingIntervalRef.current = window.setInterval(processFrame, 500)
@@ -130,7 +148,7 @@ export function CameraTile({
   return (
     <div
       onClick={onSelect}
-      className={`relative aspect-video rounded-lg overflow-hidden bg-zinc-900 border ${
+      className={`relative h-full w-full rounded-lg overflow-hidden bg-zinc-900 border ${
         selected ? "border-white ring-2 ring-white/20" : "border-zinc-800"
       } cursor-pointer transition-all hover:border-zinc-700`}
     >
@@ -141,6 +159,7 @@ export function CameraTile({
         loop
         muted
         playsInline
+        crossOrigin="anonymous"
         className="w-full h-full object-cover"
       />
 

@@ -3,6 +3,8 @@
 import { CameraTile } from "@/components/camera-tile"
 import type { CameraFeed, Incident } from "@/types/lumenta"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { STOCK_FEEDS } from "@/components/camera-detail-view"
 
 interface CameraWallProps {
   feeds: CameraFeed[]
@@ -27,27 +29,15 @@ export function CameraWall({
   onAddIncident,
   onUpdateMetrics,
 }: CameraWallProps) {
-  // Load a sample video on mount if no feeds exist
-  const [sampleLoaded, setSampleLoaded] = useState(false)
+  const router = useRouter()
+  // Use stock feeds if no feeds are provided
+  const displayFeeds = feeds.length > 0 ? feeds : STOCK_FEEDS
 
-  useEffect(() => {
-    if (feeds.length === 0 && !sampleLoaded) {
-      setSampleLoaded(true)
-      // Create a sample feed with a placeholder video
-      const sampleFeed: CameraFeed = {
-        id: "sample-1",
-        name: "Demo Feed 1",
-        videoUrl: "/security-camera-footage.png",
-        isPlaying: true,
-        activity: 0,
-        latency: 12,
-        signalRate: 0,
-      }
-      // This would typically come from props, but we'll show the empty state for now
-    }
-  }, [feeds.length, sampleLoaded])
+  const handleCameraClick = (feedId: string) => {
+    router.push(`/console/feeds/${feedId}`)
+  }
 
-  if (feeds.length === 0) {
+  if (displayFeeds.length === 0) {
     return (
       <div className="min-h-full w-full flex items-center justify-center">
         <div className="text-center max-w-md">
@@ -62,20 +52,21 @@ export function CameraWall({
   }
 
   return (
-    <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
-      {feeds.map((feed) => (
-        <CameraTile
-          key={feed.id}
-          feed={feed}
-          selected={selectedFeedId === feed.id}
-          privacyMode={privacyMode}
-          onSelect={() => onSelectFeed(feed.id)}
-          onToggle={() => onToggleFeed(feed.id)}
-          onRestart={() => onRestartFeed(feed.id)}
-          onRemove={() => onRemoveFeed(feed.id)}
-          onAddIncident={onAddIncident}
-          onUpdateMetrics={onUpdateMetrics}
-        />
+    <div className="h-full w-full grid grid-cols-3 grid-rows-3 gap-4">
+      {displayFeeds.map((feed) => (
+        <div key={feed.id} className="h-full min-h-0">
+          <CameraTile
+            feed={feed}
+            selected={selectedFeedId === feed.id}
+            privacyMode={privacyMode}
+            onSelect={() => handleCameraClick(feed.id)}
+            onToggle={() => onToggleFeed(feed.id)}
+            onRestart={() => onRestartFeed(feed.id)}
+            onRemove={() => onRemoveFeed(feed.id)}
+            onAddIncident={onAddIncident}
+            onUpdateMetrics={onUpdateMetrics}
+          />
+        </div>
       ))}
     </div>
   )

@@ -74,34 +74,18 @@ export function ConsoleView() {
     switch (currentView) {
       case "feeds":
         return (
-          <div className="h-full w-full flex overflow-hidden min-w-0 min-h-0">
-            {/* Left Pane: Camera Wall */}
-            <div className="flex-1 h-full overflow-auto p-4 min-w-0 min-h-0">
-              <CameraWall
-                feeds={feeds}
-                selectedFeedId={selectedFeedId}
-                onSelectFeed={setSelectedFeedId}
-                onToggleFeed={handleToggleFeed}
-                onRestartFeed={handleRestartFeed}
-                onRemoveFeed={handleRemoveFeed}
-                onAddIncident={handleAddIncident}
-                onUpdateMetrics={handleUpdateFeedMetrics}
-                privacyMode={privacyMode}
-              />
-            </div>
-
-            {/* Right Pane: Incident Panel */}
-            <div className="w-96 h-full flex-shrink-0 border-l border-zinc-800 overflow-auto">
-              <IncidentPanel
-                incidents={incidents}
-                feeds={feeds}
-                selectedFeedId={selectedFeedId}
-                onSelectFeed={setSelectedFeedId}
-                onUpdateIncident={(id, updates) => {
-                  setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)))
-                }}
-              />
-            </div>
+          <div className="h-full w-full overflow-auto p-6">
+            <CameraWall
+              feeds={feeds}
+              selectedFeedId={selectedFeedId}
+              onSelectFeed={setSelectedFeedId}
+              onToggleFeed={handleToggleFeed}
+              onRestartFeed={handleRestartFeed}
+              onRemoveFeed={handleRemoveFeed}
+              onAddIncident={handleAddIncident}
+              onUpdateMetrics={handleUpdateFeedMetrics}
+              privacyMode={privacyMode}
+            />
           </div>
         )
       case "mcps":
