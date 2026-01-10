@@ -59,6 +59,22 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
   ]
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes || defaultNodes)
+  
+  // Update video input node position to center-left when canvas bounds are available
+  useEffect(() => {
+    if (canvasBounds && canvasBounds.height > 0) {
+      const centerY = (canvasBounds.height - NODE_HEIGHT) / 2
+      setNodes((prevNodes) => {
+        const videoInputNode = prevNodes.find((n) => n.id === "video-input")
+        if (videoInputNode && Math.abs(videoInputNode.y - centerY) > 1) {
+          return prevNodes.map((node) =>
+            node.id === "video-input" ? { ...node, x: 40, y: centerY } : node
+          )
+        }
+        return prevNodes
+      })
+    }
+  }, [canvasBounds])
   const [edges, setEdges] = useState<Edge[]>([])
   const [connectingState, setConnectingState] = useState<{
     isConnecting: boolean
@@ -104,21 +120,28 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
   }, [])
 
   const handleNodePositionChange = (id: string, x: number, y: number) => {
+    // Prevent position changes for video input node
+    const node = nodes.find((n) => n.id === id)
+    if (node && node.type === "video_input") {
+      return
+    }
     setNodes((prevNodes) =>
       prevNodes.map((node) => (node.id === id ? { ...node, x, y } : node))
     )
   }
 
   const getNextNodePosition = (): { x: number; y: number } => {
-    // Find a position that doesn't overlap with existing nodes
-    const baseX = 40
-    const baseY = 40
-    const offsetX = (nodeCounter % 3) * NODE_OFFSET
-    const offsetY = Math.floor(nodeCounter / 3) * NODE_OFFSET
-
+    // Spawn nodes in the center of the canvas
+    if (canvasBounds && canvasBounds.width > 0 && canvasBounds.height > 0) {
+      return {
+        x: (canvasBounds.width - NODE_WIDTH) / 2,
+        y: (canvasBounds.height - NODE_HEIGHT) / 2,
+      }
+    }
+    // Fallback to center of a default-sized canvas if bounds aren't available yet
     return {
-      x: baseX + offsetX,
-      y: baseY + offsetY,
+      x: 400,
+      y: 200,
     }
   }
 
