@@ -36,17 +36,6 @@ export class LocalVideoSearchProvider implements VideoUnderstandingProvider {
   }
 }
 
-// Placeholder for TwelveLabs integration
-export class TwelveLabsProvider implements VideoUnderstandingProvider {
-  isConfigured(): boolean {
-    return false
-  }
-
-  async searchMoments(query: string, videoId: string): Promise<SearchResult[]> {
-    throw new Error("TwelveLabs not configured")
-  }
-
-  async getSummary(videoId: string): Promise<string> {
-    throw new Error("TwelveLabs not configured")
-  }
-}
+// Re-export Twelve Labs provider
+export { TwelveLabsProvider } from "./twelve-labs-provider"
+export type { TwelveLabsConfig } from "./twelve-labs-provider"

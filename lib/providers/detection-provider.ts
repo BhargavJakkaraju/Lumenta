@@ -26,13 +26,6 @@ export class LocalDetectionProvider implements DetectionProvider {
   }
 }
 
-// Placeholder for future ONNX/YOLOv8 implementation
-export class ONNXDetectionProvider implements DetectionProvider {
-  isConfigured(): boolean {
-    return false // Not yet configured
-  }
-
-  async detect(imageData: ImageData): Promise<DetectionResult> {
-    throw new Error("ONNX detection not configured")
-  }
-}
+// Re-export YOLOv8 provider
+export { YOLOv8DetectionProvider } from "./yolov8-detection-provider"
+export type { YOLOv8Config } from "./yolov8-detection-provider"

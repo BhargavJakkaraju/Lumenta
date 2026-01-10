@@ -40,4 +40,6 @@ export interface VideoEvent {
   severity: "low" | "medium" | "high"
   description: string
   confidence: number
+  box?: { x: number; y: number; width: number; height: number }
+  identity?: string // If face recognition matched
 }

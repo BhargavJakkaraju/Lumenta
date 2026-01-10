@@ -14,6 +14,7 @@ interface VideoPlayerProps {
 
 export interface VideoPlayerRef {
   seek: (time: number) => void
+  getVideoElement: () => HTMLVideoElement | null
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
@@ -72,6 +73,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           onTimeUpdate?.(time)
         }
       },
+      getVideoElement: () => videoRef.current,
     }))
 
     const handleSeek = (value: number[]) => {
@@ -123,9 +125,10 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             className="w-full h-full object-contain"
             loop
             muted={isMuted}
+            crossOrigin="anonymous"
           />
           {/* Overlay Info */}
-          <div className="absolute top-4 left-4 bg-zinc-900/80 backdrop-blur-sm px-4 py-2 rounded-lg border border-zinc-800">
+          <div className="absolute top-4 left-4 bg-zinc-900/80 backdrop-blur-sm px-4 py-2 rounded-lg border border-zinc-800 z-20">
             <h2 className="text-white font-semibold">{feedName}</h2>
           </div>
         </div>
