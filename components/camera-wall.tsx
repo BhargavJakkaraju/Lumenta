@@ -49,7 +49,7 @@ export function CameraWall({
 
   if (feeds.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="min-h-full w-full flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
             <Upload className="w-8 h-8 text-zinc-600" />
@@ -62,7 +62,7 @@ export function CameraWall({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
       {feeds.map((feed) => (
         <CameraTile
           key={feed.id}

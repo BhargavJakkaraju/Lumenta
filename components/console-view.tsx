@@ -4,9 +4,15 @@ import { useState } from "react"
 import { CameraWall } from "@/components/camera-wall"
 import { IncidentPanel } from "@/components/incident-panel"
 import { ConsoleTopBar } from "@/components/console-top-bar"
+import { ConsoleSidebar, type ConsoleView as ConsoleViewType } from "@/components/console-sidebar"
+import { MCPsView } from "@/components/mcps-view"
+import { AnalyticsView } from "@/components/analytics-view"
+import { LogsView } from "@/components/logs-view"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import type { CameraFeed, Incident } from "@/types/lumenta"
 
 export function ConsoleView() {
+  const [currentView, setCurrentView] = useState<ConsoleViewType>("feeds")
   const [feeds, setFeeds] = useState<CameraFeed[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null)
@@ -64,48 +70,86 @@ export function ConsoleView() {
     setFeeds((prev) => prev.map((f) => (f.id === feedId ? { ...f, ...metrics } : f)))
   }
 
+  const renderView = () => {
+    switch (currentView) {
+      case "feeds":
+        return (
+          <div className="h-full w-full flex overflow-hidden min-w-0 min-h-0">
+            {/* Left Pane: Camera Wall */}
+            <div className="flex-1 h-full overflow-auto p-4 min-w-0 min-h-0">
+              <CameraWall
+                feeds={feeds}
+                selectedFeedId={selectedFeedId}
+                onSelectFeed={setSelectedFeedId}
+                onToggleFeed={handleToggleFeed}
+                onRestartFeed={handleRestartFeed}
+                onRemoveFeed={handleRemoveFeed}
+                onAddIncident={handleAddIncident}
+                onUpdateMetrics={handleUpdateFeedMetrics}
+                privacyMode={privacyMode}
+              />
+            </div>
+
+            {/* Right Pane: Incident Panel */}
+            <div className="w-96 h-full flex-shrink-0 border-l border-zinc-800 overflow-auto">
+              <IncidentPanel
+                incidents={incidents}
+                feeds={feeds}
+                selectedFeedId={selectedFeedId}
+                onSelectFeed={setSelectedFeedId}
+                onUpdateIncident={(id, updates) => {
+                  setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)))
+                }}
+              />
+            </div>
+          </div>
+        )
+      case "mcps":
+        return (
+          <div className="h-full w-full overflow-auto min-w-0">
+            <MCPsView />
+          </div>
+        )
+      case "analytics":
+        return (
+          <div className="h-full w-full overflow-auto min-w-0">
+            <AnalyticsView />
+          </div>
+        )
+      case "logs":
+        return (
+          <div className="h-full w-full overflow-auto min-w-0">
+            <LogsView incidents={incidents} />
+          </div>
+        )
+    }
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-zinc-950">
-      <ConsoleTopBar
-        feedCount={feeds.length}
-        incidentCount={incidents.filter((i) => i.status === "open").length}
-        privacyMode={privacyMode}
-        onTogglePrivacy={() => setPrivacyMode(!privacyMode)}
-        onAddClip={handleAddClip}
-        onPlayPauseAll={handlePlayPauseAll}
-        onClearIncidents={handleClearIncidents}
-        isPlaying={!globalPaused}
-      />
+    <SidebarProvider defaultOpen={true} className="w-full h-full">
+      <div className="h-screen w-full flex flex-col bg-zinc-950 overflow-hidden" style={{ width: '100vw' }}>
+        <div className="flex-1 flex overflow-hidden w-full">
+          {/* Sidebar Navigation */}
+          <ConsoleSidebar currentView={currentView} onViewChange={setCurrentView} />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Pane: Camera Wall */}
-        <div className="flex-1 overflow-auto p-4">
-          <CameraWall
-            feeds={feeds}
-            selectedFeedId={selectedFeedId}
-            onSelectFeed={setSelectedFeedId}
-            onToggleFeed={handleToggleFeed}
-            onRestartFeed={handleRestartFeed}
-            onRemoveFeed={handleRemoveFeed}
-            onAddIncident={handleAddIncident}
-            onUpdateMetrics={handleUpdateFeedMetrics}
-            privacyMode={privacyMode}
-          />
-        </div>
-
-        {/* Right Pane: Incident Panel */}
-        <div className="w-96 border-l border-zinc-800 overflow-auto">
-          <IncidentPanel
-            incidents={incidents}
-            feeds={feeds}
-            selectedFeedId={selectedFeedId}
-            onSelectFeed={setSelectedFeedId}
-            onUpdateIncident={(id, updates) => {
-              setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)))
-            }}
-          />
+          {/* Main Content Area */}
+          <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-zinc-950 min-w-0" style={{ width: '100%', maxWidth: 'none' }}>
+            <ConsoleTopBar
+              feedCount={feeds.length}
+              incidentCount={incidents.filter((i) => i.status === "open").length}
+              privacyMode={privacyMode}
+              onTogglePrivacy={() => setPrivacyMode(!privacyMode)}
+              onAddClip={handleAddClip}
+              onPlayPauseAll={handlePlayPauseAll}
+              onClearIncidents={handleClearIncidents}
+              isPlaying={!globalPaused}
+            />
+            <div className="flex-1 overflow-hidden min-h-0 w-full h-full" style={{ width: '100%', maxWidth: 'none', height: '100%' }} key={currentView}>
+              {renderView()}
+            </div>
+          </SidebarInset>
         </div>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }
