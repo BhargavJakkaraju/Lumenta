@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { DraggableNode, type DraggableNodeHandle } from "./DraggableNode"
 import { NodeToolbar } from "./NodeToolbar"
+import { NodeConfigModal } from "./NodeConfigModal"
 import {
   type Edge,
   createEdge,
@@ -11,12 +12,23 @@ import {
   removeEdgesForNode,
 } from "./edges"
 
-interface Node {
+export interface AnalyzeNodeConfig {
+  prompt: string
+  sensitivity: "low" | "medium" | "high"
+}
+
+export interface ActionNodeConfig {
+  option: "option1" | "option2" | "option3" | "option4" | "option5"
+  description: string
+}
+
+export interface Node {
   id: string
   type: string
   title: string
   x: number
   y: number
+  config?: AnalyzeNodeConfig | ActionNodeConfig | {}
 }
 
 interface NodeCanvasProps {
@@ -42,6 +54,7 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
       title: "Video Input",
       x: 40,
       y: 40,
+      config: {},
     },
   ]
 
@@ -55,6 +68,8 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
     currentX: number
     currentY: number
   } | null>(null)
+  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, DraggableNodeHandle>>(new Map())
   const connectingStateRef = useRef<{
     fromNodeId: string
@@ -111,12 +126,20 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
     const newId = `node-${Date.now()}-${nodeCounter}`
     const position = getNextNodePosition()
 
+    const defaultConfig =
+      type === "analyze"
+        ? ({ prompt: "", sensitivity: "medium" } as AnalyzeNodeConfig)
+        : type === "action"
+          ? ({ option: "option1", description: "" } as ActionNodeConfig)
+          : {}
+
     const newNode: Node = {
       id: newId,
       type,
       title: type === "analyze" ? "Analyze" : "Action",
       x: position.x,
       y: position.y,
+      config: defaultConfig,
     }
 
     setNodes((prevNodes) => [...prevNodes, newNode])
@@ -128,6 +151,31 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
     setEdges((prevEdges) => removeEdgesForNode(prevEdges, nodeId))
     nodeRefs.current.delete(nodeId)
   }
+
+  const handleNodeClick = (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (node && (node.type === "analyze" || node.type === "action")) {
+      setSelectedNodeId(nodeId)
+      setConfigModalOpen(true)
+    }
+  }
+
+  const handleSaveConfig = (
+    nodeId: string,
+    config: AnalyzeNodeConfig | ActionNodeConfig
+  ) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) =>
+        node.id === nodeId ? { ...node, config } : node
+      )
+    )
+  }
+
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId)
+  const selectedNodeType =
+    selectedNode?.type === "analyze" || selectedNode?.type === "action"
+      ? selectedNode.type
+      : null
 
   const handleHandlePointerDown = useCallback(
     (e: React.PointerEvent, nodeId: string, handleType: "output" | "input") => {
@@ -344,12 +392,31 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
           title={node.title}
           x={node.x}
           y={node.y}
+          config={node.config}
           onPositionChange={handleNodePositionChange}
           onDelete={handleDeleteNode}
           onHandlePointerDown={handleHandlePointerDown}
+          onNodeClick={handleNodeClick}
           canvasBounds={canvasBounds}
         />
       ))}
+
+      {/* Configuration Modal */}
+      <NodeConfigModal
+        isOpen={configModalOpen}
+        nodeType={selectedNodeType}
+        nodeId={selectedNodeId}
+        config={
+          selectedNode?.config && selectedNodeType
+            ? (selectedNode.config as AnalyzeNodeConfig | ActionNodeConfig)
+            : null
+        }
+        onSave={handleSaveConfig}
+        onClose={() => {
+          setConfigModalOpen(false)
+          setSelectedNodeId(null)
+        }}
+      />
     </div>
   )
 }

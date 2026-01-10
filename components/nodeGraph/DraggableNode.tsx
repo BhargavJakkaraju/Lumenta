@@ -3,15 +3,27 @@
 import { useRef, forwardRef, useImperativeHandle } from "react"
 import { X } from "lucide-react"
 
+interface AnalyzeNodeConfig {
+  prompt: string
+  sensitivity: "low" | "medium" | "high"
+}
+
+interface ActionNodeConfig {
+  option: "option1" | "option2" | "option3" | "option4" | "option5"
+  description: string
+}
+
 interface DraggableNodeProps {
   id: string
   type: string
   title: string
   x: number
   y: number
+  config?: AnalyzeNodeConfig | ActionNodeConfig | {}
   onPositionChange: (id: string, x: number, y: number) => void
   onDelete: (id: string) => void
   onHandlePointerDown?: (e: React.PointerEvent, nodeId: string, handleType: "output" | "input") => void
+  onNodeClick?: (nodeId: string) => void
   canvasBounds: { width: number; height: number } | null
 }
 
@@ -24,7 +36,7 @@ const NODE_HEIGHT = 100
 const HANDLE_SIZE = 12
 
 export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>(
-  ({ id, type, title, x, y, onPositionChange, onDelete, onHandlePointerDown, canvasBounds }, ref) => {
+  ({ id, type, title, x, y, config, onPositionChange, onDelete, onHandlePointerDown, onNodeClick, canvasBounds }, ref) => {
   const nodeRef = useRef<HTMLDivElement>(null)
   const outputHandleRef = useRef<HTMLDivElement>(null)
   const inputHandleRef = useRef<HTMLDivElement>(null)
@@ -84,7 +96,7 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
     if (!node || !canvasBounds) return
 
     dragStateRef.current = {
-      isDragging: true,
+      isDragging: false, // Start as false, will be set to true on move
       startX: e.clientX,
       startY: e.clientY,
       initialX: x,
@@ -92,7 +104,6 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
     }
 
     node.setPointerCapture(e.pointerId)
-    node.style.cursor = "grabbing"
   }
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -110,21 +121,34 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragStateRef.current.isDragging || !canvasBounds) return
+    // Only process if we have an active drag state and pointer is captured
+    if (!canvasBounds || !dragStateRef.current) return
+    
+    const node = nodeRef.current
+    if (!node || !node.hasPointerCapture(e.pointerId)) return
 
-    // Calculate new position relative to canvas
+    // Calculate movement distance
     const deltaX = e.clientX - dragStateRef.current.startX
     const deltaY = e.clientY - dragStateRef.current.startY
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
 
-    const newX = dragStateRef.current.initialX + deltaX
-    const newY = dragStateRef.current.initialY + deltaY
+    // Only start dragging if moved more than 5px (to distinguish from click)
+    if (!dragStateRef.current.isDragging && distance > 5) {
+      dragStateRef.current.isDragging = true
+      node.style.cursor = "grabbing"
+    }
 
-    const constrained = constrainPosition(newX, newY)
-    onPositionChange(id, constrained.x, constrained.y)
+    if (dragStateRef.current.isDragging) {
+      const newX = dragStateRef.current.initialX + deltaX
+      const newY = dragStateRef.current.initialY + deltaY
+
+      const constrained = constrainPosition(newX, newY)
+      onPositionChange(id, constrained.x, constrained.y)
+    }
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!dragStateRef.current.isDragging) return
+    const wasDragging = dragStateRef.current?.isDragging ?? false
 
     const node = nodeRef.current
     if (node) {
@@ -132,13 +156,54 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
       node.style.cursor = "grab"
     }
 
-    dragStateRef.current.isDragging = false
+    // If we didn't drag (or moved very little), treat it as a click
+    if (!wasDragging && onNodeClick && (type === "analyze" || type === "action")) {
+      onNodeClick(id)
+    }
+
+    if (dragStateRef.current) {
+      dragStateRef.current.isDragging = false
+    }
+  }
+
+  const getConfigSummary = () => {
+    if (!config || type === "video_input") return null
+
+    if (type === "analyze") {
+      const analyzeConfig = config as AnalyzeNodeConfig
+      if (analyzeConfig.prompt) {
+        const promptPreview =
+          analyzeConfig.prompt.length > 40
+            ? analyzeConfig.prompt.substring(0, 40) + "..."
+            : analyzeConfig.prompt
+        return `${promptPreview} (${analyzeConfig.sensitivity})`
+      }
+      return null
+    }
+
+    if (type === "action") {
+      const actionConfig = config as ActionNodeConfig
+      if (actionConfig.description || actionConfig.option) {
+        const optionLabel = actionConfig.option.replace("option", "Option ")
+        const descPreview = actionConfig.description
+          ? actionConfig.description.length > 40
+            ? actionConfig.description.substring(0, 40) + "..."
+            : actionConfig.description
+          : ""
+        return descPreview
+          ? `${optionLabel}: ${descPreview}`
+          : optionLabel
+      }
+      return null
+    }
+
+    return null
   }
 
   return (
     <div
       ref={nodeRef}
-      className="absolute cursor-grab active:cursor-grabbing select-none"
+      className="absolute cursor-grab select-none"
       style={{
         left: `${x}px`,
         top: `${y}px`,
@@ -181,10 +246,14 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
             </>
           )}
           {type === "analyze" && (
-            <p className="text-xs text-zinc-400">Prompt: (coming soon)</p>
+            <p className="text-xs text-zinc-400">
+              {getConfigSummary() || "Prompt: (coming soon)"}
+            </p>
           )}
           {type === "action" && (
-            <p className="text-xs text-zinc-400">Action: (coming soon)</p>
+            <p className="text-xs text-zinc-400">
+              {getConfigSummary() || "Action: (coming soon)"}
+            </p>
           )}
         </div>
       </div>

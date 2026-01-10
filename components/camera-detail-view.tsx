@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
 import { EventTimeline } from "@/components/event-timeline"
+import { NodeCanvas } from "@/components/nodeGraph/NodeCanvas"
 import type { CameraFeed, VideoEvent } from "@/types/lumenta"
 
 interface CameraDetailViewProps {
@@ -171,16 +172,24 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     <div className="h-full w-full flex flex-col bg-zinc-950 overflow-hidden">
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left: Video Player */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <div className="h-full min-h-0 p-6">
-            <VideoPlayer
-              ref={videoPlayerRef}
-              videoUrl={feed.videoUrl}
-              feedName={feed.name}
-              onTimeUpdate={setCurrentTime}
-              onDurationChange={setDuration}
-            />
+        {/* Left: Video Player and Node Graph (scrollable) */}
+        <div className="flex-1 overflow-auto min-w-0">
+          <div className="p-6 space-y-6">
+            {/* Video Player - Full Size */}
+            <div className="h-[600px]">
+              <VideoPlayer
+                ref={videoPlayerRef}
+                videoUrl={feed.videoUrl}
+                feedName={feed.name}
+                onTimeUpdate={setCurrentTime}
+                onDurationChange={setDuration}
+              />
+            </div>
+            {/* Node Graph Area */}
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-white">Node Graph</p>
+              <NodeCanvas />
+            </div>
           </div>
         </div>
 
