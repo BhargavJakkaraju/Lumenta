@@ -35,7 +35,7 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
       case "medium":
         return "bg-yellow-600 hover:bg-yellow-700"
       case "low":
-        return "bg-blue-600 hover:bg-blue-700"
+        return "bg-green-600 hover:bg-green-700"
     }
   }
 
@@ -51,22 +51,22 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
 
   return (
     <div className="h-full flex flex-col bg-zinc-950 overflow-hidden">
-      <CardHeader className="border-b border-zinc-800 bg-zinc-900/40">
-        <CardTitle className="text-white flex items-center gap-2">
+      <CardHeader className="border-b border-zinc-800 bg-zinc-900/40 flex-shrink-0 !px-4 !py-3 flex items-center">
+        <CardTitle className="text-white flex items-center gap-2 text-base font-medium leading-none">
           <Clock className="size-5" />
           Event Timeline
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 overflow-auto p-4">
+      <CardContent className="flex-1 overflow-auto !px-2 !py-1.5 min-h-0">
         {events.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Clock className="size-12 text-zinc-600 mb-4" />
             <p className="text-zinc-400">No events recorded</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {/* Timeline visualization */}
-            <div className="mb-6">
+            <div className="mb-2">
               <div className="relative h-2 bg-zinc-800 rounded-full">
                 {events.map((event) => {
                   const position = duration > 0 ? (event.timestamp / duration) * 100 : 0
@@ -95,38 +95,36 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
               return (
                 <Card
                   key={event.id}
-                  className={`bg-zinc-900 border-zinc-800 cursor-pointer transition-all hover:border-zinc-700 ${
+                  className={`bg-zinc-900 border-zinc-800 cursor-pointer transition-all hover:border-zinc-700 !py-0 !gap-0 ${
                     isActive ? "ring-2 ring-blue-500" : ""
                   }`}
                   onClick={() => handleEventClick(event)}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div
-                          className={`p-2 rounded-lg ${getSeverityColor(event.severity)} text-white`}
-                        >
-                          {getEventIcon(event.type)}
+                  <CardContent className="!px-2 !py-1.5">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`p-0.5 rounded flex-shrink-0 ${getSeverityColor(event.severity)} text-white flex items-center justify-center`}
+                      >
+                        {getEventIcon(event.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Badge
+                            className={`${getSeverityColor(event.severity)} text-xs py-0 px-1.5 h-4`}
+                            variant="default"
+                          >
+                            {event.severity}
+                          </Badge>
+                          <span className="text-xs text-zinc-400 font-mono leading-none">
+                            {formatTime(event.timestamp)}
+                          </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              className={getSeverityColor(event.severity)}
-                              variant="default"
-                            >
-                              {event.severity}
-                            </Badge>
-                            <span className="text-xs text-zinc-400 font-mono">
-                              {formatTime(event.timestamp)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-white font-medium mb-1">
-                            {event.description}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            Confidence: {(event.confidence * 100).toFixed(0)}%
-                          </p>
-                        </div>
+                        <p className="text-xs text-white font-medium leading-tight mb-0.5">
+                          {event.description}
+                        </p>
+                        <p className="text-xs text-zinc-500 leading-none">
+                          Confidence: {(event.confidence * 100).toFixed(0)}%
+                        </p>
                       </div>
                     </div>
                   </CardContent>
