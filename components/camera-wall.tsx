@@ -1,6 +1,8 @@
 "use client"
 
 import { CameraTile } from "@/components/camera-tile"
+import { VideoFeedPlaceholder } from "@/components/VideoFeedPlaceholder"
+import { ExpandedVideoPanel } from "@/components/ExpandedVideoPanel"
 import type { CameraFeed, Incident } from "@/types/lumenta"
 import { useEffect, useState } from "react"
 
@@ -29,6 +31,7 @@ export function CameraWall({
 }: CameraWallProps) {
   // Load a sample video on mount if no feeds exist
   const [sampleLoaded, setSampleLoaded] = useState(false)
+  const [isPlaceholderActive, setIsPlaceholderActive] = useState(false)
 
   useEffect(() => {
     if (feeds.length === 0 && !sampleLoaded) {
@@ -47,22 +50,35 @@ export function CameraWall({
     }
   }, [feeds.length, sampleLoaded])
 
-  if (feeds.length === 0) {
+  // Reset placeholder active state when feeds are added
+  useEffect(() => {
+    if (feeds.length > 0) {
+      setIsPlaceholderActive(false)
+    }
+  }, [feeds.length])
+
+  const handlePlaceholderClick = () => {
+    setIsPlaceholderActive(!isPlaceholderActive)
+  }
+
+  // Show expanded view when placeholder is active
+  if (isPlaceholderActive && feeds.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-            <Upload className="w-8 h-8 text-zinc-600" />
-          </div>
-          <h3 className="text-xl font-semibold text-white mb-2">No Feeds Active</h3>
-          <p className="text-zinc-400 leading-relaxed">Click "Add Clip" to upload a video file and start monitoring</p>
-        </div>
+      <div className="w-full space-y-4">
+        <ExpandedVideoPanel label="Camera 1" onClose={() => setIsPlaceholderActive(false)} />
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
+      {feeds.length === 0 && (
+        <VideoFeedPlaceholder
+          label="Camera 1"
+          isActive={isPlaceholderActive}
+          onClick={handlePlaceholderClick}
+        />
+      )}
       {feeds.map((feed) => (
         <CameraTile
           key={feed.id}
@@ -78,18 +94,5 @@ export function CameraWall({
         />
       ))}
     </div>
-  )
-}
-
-function Upload({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-      />
-    </svg>
   )
 }

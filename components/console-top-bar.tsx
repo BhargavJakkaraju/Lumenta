@@ -5,7 +5,7 @@ import type React from "react"
 import { useRef } from "react"
 import { Upload, Play, Pause, Trash2, Shield, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 
 interface ConsoleTopBarProps {
   feedCount: number
@@ -41,14 +41,9 @@ export function ConsoleTopBar({
   }
 
   return (
-    <div className="h-16 border-b border-zinc-800 px-4 flex items-center justify-between bg-zinc-900/40 backdrop-blur-md">
+    <div className="h-16 border-b border-zinc-800 px-4 flex items-center justify-between bg-zinc-900/40 backdrop-blur-md w-full">
       <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-            <span className="text-zinc-950 font-bold text-sm">L</span>
-          </div>
-          <span className="font-semibold text-white">Lumenta</span>
-        </Link>
+        <SidebarTrigger className="text-zinc-400 hover:text-white" />
 
         <div className="flex items-center gap-3 text-sm text-zinc-400">
           <div className="flex items-center gap-1">
