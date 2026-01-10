@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Manrope } from "next/font/google"
-import localFont from "next/font/local"
+import { Manrope, Inter, Space_Grotesk } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
@@ -10,14 +9,17 @@ const manrope = Manrope({
   variable: "--font-manrope",
 })
 
-const calSans = localFont({
-  src: "./fonts/CalSans-SemiBold.woff2",
+// Replace Cal Sans with Space Grotesk (similar geometric sans-serif)
+const calSans = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["600"], // SemiBold weight to match CalSans-SemiBold
   variable: "--font-cal-sans",
   display: "swap",
 })
 
-const instrumentSans = localFont({
-  src: "./fonts/InstrumentSans-Variable.woff2",
+// Replace Instrument Sans with Inter (similar humanist sans-serif)
+const instrumentSans = Inter({
+  subsets: ["latin"],
   variable: "--font-instrument-sans",
   display: "swap",
 })
