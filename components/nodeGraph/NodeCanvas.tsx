@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from "react"
 import { DraggableNode, type DraggableNodeHandle } from "./DraggableNode"
 import { NodeToolbar } from "./NodeToolbar"
 import { NodeConfigModal } from "./NodeConfigModal"
@@ -31,15 +31,25 @@ export interface Node {
   config?: AnalyzeNodeConfig | ActionNodeConfig | {}
 }
 
+export interface NodeCanvasHandle {
+  createNodes: (nodes: Array<{
+    type: "analyze" | "action"
+    config: AnalyzeNodeConfig | ActionNodeConfig
+    title?: string
+  }>) => void
+}
+
 interface NodeCanvasProps {
   initialNodes?: Node[]
+  onGraphChange?: (nodes: Node[], edges: Edge[]) => void
 }
 
 const NODE_WIDTH = 180
 const NODE_HEIGHT = 100
 const NODE_OFFSET = 60
 
-export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
+export const NodeCanvas = forwardRef<NodeCanvasHandle, NodeCanvasProps>(
+  ({ initialNodes, onGraphChange }, ref) => {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [canvasBounds, setCanvasBounds] = useState<{
     width: number
@@ -76,6 +86,19 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
     }
   }, [canvasBounds])
   const [edges, setEdges] = useState<Edge[]>([])
+
+  // Notify parent of graph changes (use ref to avoid infinite loops)
+  const onGraphChangeRef = useRef(onGraphChange)
+  useEffect(() => {
+    onGraphChangeRef.current = onGraphChange
+  }, [onGraphChange])
+
+  useEffect(() => {
+    if (onGraphChangeRef.current) {
+      onGraphChangeRef.current(nodes, edges)
+    }
+  }, [nodes, edges])
+
   const [connectingState, setConnectingState] = useState<{
     isConnecting: boolean
     fromNodeId: string
@@ -145,21 +168,21 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
     }
   }
 
-  const handleAddNode = (type: "analyze" | "action") => {
+  const handleAddNode = (type: "analyze" | "action", config?: AnalyzeNodeConfig | ActionNodeConfig, title?: string) => {
     const newId = `node-${Date.now()}-${nodeCounter}`
     const position = getNextNodePosition()
 
     const defaultConfig =
       type === "analyze"
-        ? ({ prompt: "", sensitivity: "medium" } as AnalyzeNodeConfig)
+        ? (config || { prompt: "", sensitivity: "medium" } as AnalyzeNodeConfig)
         : type === "action"
-          ? ({ option: "option1", description: "" } as ActionNodeConfig)
+          ? (config || { option: "option1", description: "" } as ActionNodeConfig)
           : {}
 
     const newNode: Node = {
       id: newId,
       type,
-      title: type === "analyze" ? "Analyze" : "Action",
+      title: title || (type === "analyze" ? "Analyze" : "Action"),
       x: position.x,
       y: position.y,
       config: defaultConfig,
@@ -167,7 +190,42 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
 
     setNodes((prevNodes) => [...prevNodes, newNode])
     setNodeCounter((prev) => prev + 1)
+    return newId
   }
+
+  // Expose node creation method via ref
+  useImperativeHandle(ref, () => ({
+    createNodes: (nodesToCreate: Array<{
+      type: "analyze" | "action"
+      config: AnalyzeNodeConfig | ActionNodeConfig
+      title?: string
+    }>) => {
+      const videoInputNode = nodes.find(n => n.type === "video_input")
+      const createdNodeIds: string[] = []
+      
+      nodesToCreate.forEach((nodeSpec, index) => {
+        const nodeId = handleAddNode(
+          nodeSpec.type,
+          nodeSpec.config,
+          nodeSpec.title
+        )
+        createdNodeIds.push(nodeId)
+        
+        // Connect to video input if it's the first analyze node, or to previous node
+        if (videoInputNode) {
+          if (nodeSpec.type === "analyze" && index === 0) {
+            // Connect video input to first analyze node
+            const newEdge = createEdge(videoInputNode.id, nodeId)
+            setEdges((prev) => [...prev, newEdge])
+          } else if (index > 0 && createdNodeIds[index - 1]) {
+            // Connect previous node to current node
+            const newEdge = createEdge(createdNodeIds[index - 1], nodeId)
+            setEdges((prev) => [...prev, newEdge])
+          }
+        }
+      })
+    }
+  }))
 
   const handleDeleteNode = (nodeId: string) => {
     setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId))
@@ -442,5 +500,8 @@ export function NodeCanvas({ initialNodes }: NodeCanvasProps) {
       />
     </div>
   )
-}
+  }
+)
+
+NodeCanvas.displayName = "NodeCanvas"
 

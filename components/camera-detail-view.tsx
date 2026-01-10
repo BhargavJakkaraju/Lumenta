@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
 import { EventTimeline } from "@/components/event-timeline"
 import { VideoOverlay } from "@/components/video-overlay"
-import { NodeCanvas } from "@/components/nodeGraph/NodeCanvas"
+import { NodeCanvas, type Node, type NodeCanvasHandle } from "@/components/nodeGraph/NodeCanvas"
+import { WorkflowChatPanel } from "@/components/WorkflowChatPanel"
+import type { Edge } from "@/components/nodeGraph/edges"
 import { FrameProcessor } from "@/lib/frame-processor"
 import type { CameraFeed, VideoEvent } from "@/types/lumenta"
 
@@ -105,10 +107,32 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
   const [privacyMode, setPrivacyMode] = useState(true)
+  const [nodeGraphData, setNodeGraphData] = useState<{
+    nodes: Array<{ id: string; type: string; title: string; config?: any }>
+    edges: Array<{ id: string; fromNodeId: string; toNodeId: string }>
+  }>({ nodes: [], edges: [] })
   const videoPlayerRef = useRef<VideoPlayerRef | null>(null)
   const frameProcessorRef = useRef<FrameProcessor | null>(null)
   const processingCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const processingIntervalRef = useRef<number | null>(null)
+  const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
+
+  // Memoize the graph change callback
+  const handleGraphChange = useCallback((nodes: Node[], edges: Edge[]) => {
+    setNodeGraphData({
+      nodes: nodes.map((n: Node) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        config: n.config,
+      })),
+      edges: edges.map((e: Edge) => ({
+        id: e.id,
+        fromNodeId: e.fromNodeId,
+        toNodeId: e.toNodeId,
+      })),
+    })
+  }, [])
 
   useEffect(() => {
     // Find the feed by ID
@@ -270,7 +294,22 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                   Privacy: {privacyMode ? "ON" : "OFF"}
                 </button>
               </div>
-              <NodeCanvas />
+              <NodeCanvas 
+                ref={nodeCanvasRef}
+                onGraphChange={handleGraphChange}
+              />
+            </div>
+            {/* Chatbot Area */}
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-white">Chat Assistant</p>
+              <WorkflowChatPanel 
+                nodeGraphData={nodeGraphData}
+                onCreateNodes={(nodes) => {
+                  if (nodeCanvasRef.current) {
+                    nodeCanvasRef.current.createNodes(nodes)
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
