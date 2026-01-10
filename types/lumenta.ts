@@ -32,3 +32,12 @@ export interface BoundingBox {
   width: number
   height: number
 }
+
+export interface VideoEvent {
+  id: string
+  timestamp: number // in seconds
+  type: "motion" | "person" | "vehicle" | "object" | "alert"
+  severity: "low" | "medium" | "high"
+  description: string
+  confidence: number
+}

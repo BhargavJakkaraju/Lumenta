@@ -1,10 +1,9 @@
 "use client"
 
 import { CameraTile } from "@/components/camera-tile"
-import { VideoFeedPlaceholder } from "@/components/VideoFeedPlaceholder"
-import { ExpandedVideoPanel } from "@/components/ExpandedVideoPanel"
 import type { CameraFeed, Incident } from "@/types/lumenta"
-import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { STOCK_FEEDS } from "@/components/camera-detail-view"
 
 interface CameraWallProps {
   feeds: CameraFeed[]
@@ -29,69 +28,40 @@ export function CameraWall({
   onAddIncident,
   onUpdateMetrics,
 }: CameraWallProps) {
-  // Load a sample video on mount if no feeds exist
-  const [sampleLoaded, setSampleLoaded] = useState(false)
-  const [isPlaceholderActive, setIsPlaceholderActive] = useState(false)
+  const router = useRouter()
+  // Use stock feeds if no feeds are provided
+  const displayFeeds = feeds.length > 0 ? feeds : STOCK_FEEDS
 
-  useEffect(() => {
-    if (feeds.length === 0 && !sampleLoaded) {
-      setSampleLoaded(true)
-      // Create a sample feed with a placeholder video
-      const sampleFeed: CameraFeed = {
-        id: "sample-1",
-        name: "Demo Feed 1",
-        videoUrl: "/security-camera-footage.png",
-        isPlaying: true,
-        activity: 0,
-        latency: 12,
-        signalRate: 0,
-      }
-      // This would typically come from props, but we'll show the empty state for now
-    }
-  }, [feeds.length, sampleLoaded])
-
-  // Reset placeholder active state when feeds are added
-  useEffect(() => {
-    if (feeds.length > 0) {
-      setIsPlaceholderActive(false)
-    }
-  }, [feeds.length])
-
-  const handlePlaceholderClick = () => {
-    setIsPlaceholderActive(!isPlaceholderActive)
+  const handleCameraClick = (feedId: string) => {
+    router.push(`/console/feeds/${feedId}`)
   }
 
-  // Show expanded view when placeholder is active
-  if (isPlaceholderActive && feeds.length === 0) {
+  if (displayFeeds.length === 0) {
     return (
-      <div className="w-full space-y-4">
-        <ExpandedVideoPanel label="Camera 1" onClose={() => setIsPlaceholderActive(false)} />
+      <div className="w-full flex items-center justify-center min-h-full">
+        <div className="text-center">
+          <p className="text-zinc-400">No camera feeds available</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
-      {feeds.length === 0 && (
-        <VideoFeedPlaceholder
-          label="Camera 1"
-          isActive={isPlaceholderActive}
-          onClick={handlePlaceholderClick}
-        />
-      )}
-      {feeds.map((feed) => (
-        <CameraTile
-          key={feed.id}
-          feed={feed}
-          selected={selectedFeedId === feed.id}
-          privacyMode={privacyMode}
-          onSelect={() => onSelectFeed(feed.id)}
-          onToggle={() => onToggleFeed(feed.id)}
-          onRestart={() => onRestartFeed(feed.id)}
-          onRemove={() => onRemoveFeed(feed.id)}
-          onAddIncident={onAddIncident}
-          onUpdateMetrics={onUpdateMetrics}
-        />
+    <div className="h-full w-full grid grid-cols-3 grid-rows-3 gap-4">
+      {displayFeeds.map((feed) => (
+        <div key={feed.id} className="h-full min-h-0">
+          <CameraTile
+            feed={feed}
+            selected={selectedFeedId === feed.id}
+            privacyMode={privacyMode}
+            onSelect={() => handleCameraClick(feed.id)}
+            onToggle={() => onToggleFeed(feed.id)}
+            onRestart={() => onRestartFeed(feed.id)}
+            onRemove={() => onRemoveFeed(feed.id)}
+            onAddIncident={onAddIncident}
+            onUpdateMetrics={onUpdateMetrics}
+          />
+        </div>
       ))}
     </div>
   )
