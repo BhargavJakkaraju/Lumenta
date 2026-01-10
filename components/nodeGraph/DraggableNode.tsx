@@ -83,6 +83,11 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
   }
 
   const handleNodePointerDown = (e: React.PointerEvent) => {
+    // Don't allow dragging for video input nodes
+    if (type === "video_input") {
+      return
+    }
+
     // Don't drag if clicking on delete button or handle
     const target = e.target as HTMLElement
     if (target.closest('[data-delete-button]') || target.closest('[data-handle]')) {
@@ -203,7 +208,7 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
   return (
     <div
       ref={nodeRef}
-      className="absolute cursor-grab select-none"
+      className={`absolute select-none ${type === "video_input" ? "cursor-default" : "cursor-grab"}`}
       style={{
         left: `${x}px`,
         top: `${y}px`,
