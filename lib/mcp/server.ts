@@ -337,7 +337,7 @@ export const MCP_TOOLS: MCPTool[] = [
   },
   {
     name: "call_phone",
-    description: "Make a phone call using Vapi. The message/prompt is configured in your Vapi assistant, not passed here.",
+    description: "Make a phone call using Vapi. Optionally pass a message/prompt to override the assistant's default prompt.",
     inputSchema: {
       type: "object",
       properties: {
@@ -345,9 +345,13 @@ export const MCP_TOOLS: MCPTool[] = [
           type: "string",
           description: "Phone number to call (with country code, e.g., +1234567890)",
         },
+        message: {
+          type: "string",
+          description: "Optional message/prompt to send to the Vapi agent. If provided, this will override the assistant's default prompt.",
+        },
         assistantId: {
           type: "string",
-          description: "Vapi assistant ID (optional, uses VAPI_ASSISTANT_ID from environment variable if not provided). Must be a UUID from Vapi Dashboard → Assistants. The assistant defines what message to say.",
+          description: "Vapi assistant ID (optional, uses VAPI_ASSISTANT_ID from environment variable if not provided). Must be a UUID from Vapi Dashboard → Assistants.",
         },
       },
       required: ["to"],
@@ -883,8 +887,16 @@ export async function callTool(
             },
           }
 
-          // Note: message is not supported in Vapi API - it's configured in the assistant
-          // If you need to pass a message, configure it in your Vapi assistant settings
+          // If a message/prompt is provided (extracted by Gemini), pass it to Vapi via assistantOverrides
+          // This allows the assistant to access the message as a dynamic variable using {{message}} in the prompt
+          if (params.message) {
+            callPayload.assistantOverrides = {
+              variableValues: {
+                message: params.message,
+                prompt: params.message,
+              },
+            }
+          }
 
           const response = await fetch("https://api.vapi.ai/call", {
             method: "POST",
