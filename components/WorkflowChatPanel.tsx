@@ -245,6 +245,7 @@ Connect them: video_input -> analyze -> action`
           <Bot className="size-5 text-blue-400" />
           <h3 className="text-lg font-semibold text-white">Chat Assistant</h3>
         </div>
+        <p className="text-xs text-zinc-400">Powered by Gemini</p>
       </div>
 
       {/* Message History Area */}
