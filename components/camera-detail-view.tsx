@@ -6,8 +6,13 @@ import { EventTimeline } from "@/components/event-timeline"
 import { VideoOverlay } from "@/components/video-overlay"
 import { NodeCanvas, type Node, type NodeCanvasHandle } from "@/components/nodeGraph/NodeCanvas"
 import { WorkflowChatPanel } from "@/components/WorkflowChatPanel"
+import { Input } from "@/components/ui/input"
+import { useToast } from "@/hooks/use-toast"
 import type { Edge } from "@/components/nodeGraph/edges"
 import { FrameProcessor } from "@/lib/frame-processor"
+import { generateVideoHighlights } from "@/lib/twelvelabs-highlights"
+import { providerCoordinator } from "@/lib/providers"
+import { saveProviderConfig } from "@/lib/providers/config"
 import type { CameraFeed, VideoEvent } from "@/types/lumenta"
 
 interface CameraDetailViewProps {
@@ -107,6 +112,13 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
   const [privacyMode, setPrivacyMode] = useState(true)
+  const [yoloEnabled, setYoloEnabled] = useState(false)
+  const [yoloModelPath, setYoloModelPath] = useState("/models/yolov8n.onnx")
+  const [yoloInputSize, setYoloInputSize] = useState(640)
+  const [yoloConfidence, setYoloConfidence] = useState(0.5)
+  const [detectionStatus, setDetectionStatus] = useState("local")
+  const { toast } = useToast()
+  const lastAlertRef = useRef<string | null>(null)
   const [nodeGraphData, setNodeGraphData] = useState<{
     nodes: Array<{ id: string; type: string; title: string; config?: any }>
     edges: Array<{ id: string; fromNodeId: string; toNodeId: string }>
@@ -135,12 +147,101 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   }, [])
 
   useEffect(() => {
+    const config = providerCoordinator.getConfig()
+    const status = providerCoordinator.getStatus()
+    if (config.yolov8) {
+      setYoloEnabled(!!config.yolov8.enabled)
+      setYoloModelPath(config.yolov8.modelPath || "/models/yolov8n.onnx")
+      setYoloInputSize(config.yolov8.inputSize || 640)
+      setYoloConfidence(config.yolov8.confidenceThreshold ?? 0.5)
+    }
+    setDetectionStatus(status.detection)
+  }, [])
+
+
+  const applyYoloConfig = useCallback(
+    async (nextConfig: {
+      enabled: boolean
+      modelPath: string
+      inputSize: number
+      confidenceThreshold: number
+    }) => {
+      const configUpdate = {
+        yolov8: {
+          enabled: nextConfig.enabled,
+          modelPath: nextConfig.modelPath,
+          inputSize: nextConfig.inputSize,
+          confidenceThreshold: nextConfig.confidenceThreshold,
+        },
+      }
+      saveProviderConfig({ ...providerCoordinator.getConfig(), ...configUpdate })
+      await providerCoordinator.updateConfig(configUpdate)
+      setDetectionStatus(providerCoordinator.getStatus().detection)
+    },
+    []
+  )
+
+  useEffect(() => {
     // Find the feed by ID
     const foundFeed = STOCK_FEEDS.find((f) => f.id === feedId)
     if (foundFeed) {
       setFeed(foundFeed)
       // Initialize frame processor
       frameProcessorRef.current = new FrameProcessor(feedId)
+      
+      // Generate video highlights using TwelveLabs
+      if (foundFeed.videoUrl) {
+        generateVideoHighlights(foundFeed.videoUrl, feedId)
+          .then((result) => {
+            // Convert chapters to VideoEvent objects with intelligent type/severity detection
+            const highlightEvents: VideoEvent[] = result.chapters.map((chapter, index) => {
+              const description = chapter.title.toLowerCase()
+              
+              // Detect event type from description
+              let type: VideoEvent["type"] = "motion"
+              let severity: VideoEvent["severity"] = "medium"
+              
+              if (description.includes("person") || description.includes("people") || description.includes("human") || description.includes("individual")) {
+                type = "person"
+              } else if (description.includes("car") || description.includes("vehicle") || description.includes("truck") || description.includes("van") || description.includes("motorcycle")) {
+                type = "vehicle"
+              } else if (description.includes("alert") || description.includes("incident") || description.includes("suspicious") || description.includes("unauthorized") || description.includes("breach")) {
+                type = "alert"
+                severity = "high"
+              } else if (description.includes("object") || description.includes("package") || description.includes("bag")) {
+                type = "object"
+              }
+              
+              // Detect severity from keywords
+              if (description.includes("alert") || description.includes("incident") || description.includes("suspicious") || description.includes("unauthorized") || description.includes("breach") || description.includes("danger")) {
+                severity = "high"
+              } else if (description.includes("normal") || description.includes("routine") || description.includes("standard")) {
+                severity = "low"
+              }
+              
+              return {
+                id: `${feedId}-highlight-${index}`,
+                timestamp: chapter.start,
+                type,
+                severity,
+                description: chapter.title, // Keep original title from TwelveLabs
+                confidence: 0.85, // TwelveLabs provides high-quality analysis
+              }
+            })
+            
+            // Set events in the timeline
+            setEvents((prevEvents) => {
+              const eventMap = new Map(prevEvents.map((e) => [e.id, e]))
+              highlightEvents.forEach((event) => {
+                eventMap.set(event.id, event)
+              })
+              return Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
+            })
+          })
+          .catch((error) => {
+            console.error("Failed to generate video highlights:", error)
+          })
+      }
     }
   }, [feedId])
 
@@ -192,12 +293,19 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           enableReasoning: true,
           privacyMode,
           videoId: feedId,
+          analyzeNodes: nodeGraphData.nodes
+            .filter((node) => node.type === "analyze")
+            .map((node) => ({
+              prompt: node.config?.prompt,
+              sensitivity: node.config?.sensitivity,
+            }))
+            .filter((node) => node.prompt),
         })
 
         // Update events state (deduplicate and merge)
         setEvents((prevEvents) => {
           const eventMap = new Map(prevEvents.map((e) => [e.id, e]))
-          
+
           // Add new events
           result.events.forEach((event) => {
             eventMap.set(event.id, event)
@@ -206,6 +314,19 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           // Return sorted by timestamp
           return Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
         })
+
+        const latestAlert = result.events
+          .filter((event) => event.type === "alert" && event.source === "analyze")
+          .sort((a, b) => b.timestamp - a.timestamp)[0]
+
+        if (latestAlert && latestAlert.id !== lastAlertRef.current) {
+          lastAlertRef.current = latestAlert.id
+          toast({
+            title: "Analyze Match",
+            description: latestAlert.description,
+            className: "bg-blue-600 text-white border-blue-700",
+          })
+        }
       } catch (error) {
         console.error("Frame processing error:", error)
       }
@@ -280,7 +401,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
               )}
               {/* Processing Status */}
               <div className="absolute bottom-4 right-4 bg-zinc-900/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-zinc-800 text-xs text-zinc-400 z-20">
-                Processing: {events.length} events detected
+                Alerts: {events.filter((event) => !event.overlayOnly && event.type === "alert").length}
               </div>
             </div>
             {/* Node Graph Area */}
@@ -293,6 +414,91 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                 >
                   Privacy: {privacyMode ? "ON" : "OFF"}
                 </button>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-white">YOLOv8 Detection</p>
+                  <button
+                    onClick={() => {
+                      const nextEnabled = !yoloEnabled
+                      setYoloEnabled(nextEnabled)
+                      applyYoloConfig({
+                        enabled: nextEnabled,
+                        modelPath: yoloModelPath,
+                        inputSize: yoloInputSize,
+                        confidenceThreshold: yoloConfidence,
+                      }).catch((error) => {
+                        console.error("Failed to update YOLOv8 config:", error)
+                      })
+                    }}
+                    className="text-xs px-3 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  >
+                    {yoloEnabled ? "Disable" : "Enable"}
+                  </button>
+                </div>
+                <div className="text-xs text-zinc-400">
+                  Status: {detectionStatus}
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Input
+                    value={yoloModelPath}
+                    onChange={(event) => setYoloModelPath(event.target.value)}
+                    onBlur={() => {
+                      applyYoloConfig({
+                        enabled: yoloEnabled,
+                        modelPath: yoloModelPath,
+                        inputSize: yoloInputSize,
+                        confidenceThreshold: yoloConfidence,
+                      }).catch((error) => {
+                        console.error("Failed to update YOLOv8 config:", error)
+                      })
+                    }}
+                    placeholder="/models/yolov8n.onnx"
+                    className="h-8 text-xs"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      min={320}
+                      step={32}
+                      value={yoloInputSize}
+                      onChange={(event) => setYoloInputSize(Number(event.target.value))}
+                      onBlur={() => {
+                        applyYoloConfig({
+                          enabled: yoloEnabled,
+                          modelPath: yoloModelPath,
+                          inputSize: yoloInputSize,
+                          confidenceThreshold: yoloConfidence,
+                        }).catch((error) => {
+                          console.error("Failed to update YOLOv8 config:", error)
+                        })
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={yoloConfidence}
+                      onChange={(event) => setYoloConfidence(Number(event.target.value))}
+                      onBlur={() => {
+                        applyYoloConfig({
+                          enabled: yoloEnabled,
+                          modelPath: yoloModelPath,
+                          inputSize: yoloInputSize,
+                          confidenceThreshold: yoloConfidence,
+                        }).catch((error) => {
+                          console.error("Failed to update YOLOv8 config:", error)
+                        })
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  Place the ONNX model in `public/models` and use a public path.
+                </p>
               </div>
               <NodeCanvas 
                 ref={nodeCanvasRef}

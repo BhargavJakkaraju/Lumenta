@@ -13,6 +13,9 @@ interface EventTimelineProps {
 }
 
 export function EventTimeline({ events, currentTime, duration, onSeek }: EventTimelineProps) {
+  const timelineEvents = events.filter(
+    (event) => !event.overlayOnly && (event.type === "alert" || event.type === "activity")
+  )
   const getEventIcon = (type: VideoEvent["type"]) => {
     switch (type) {
       case "person":
@@ -23,13 +26,19 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
         return <Activity className="size-4" />
       case "alert":
         return <AlertCircle className="size-4" />
+      case "activity":
+        return <Activity className="size-4" />
       default:
         return <Activity className="size-4" />
     }
   }
 
-  const getSeverityColor = (severity: VideoEvent["severity"]) => {
-    switch (severity) {
+  const getSeverityColor = (event: VideoEvent) => {
+    if (event.type === "alert") {
+      return "bg-blue-600 hover:bg-blue-700"
+    }
+
+    switch (event.severity) {
       case "high":
         return "bg-red-600 hover:bg-red-700"
       case "medium":
@@ -58,17 +67,17 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto !px-2 !py-1.5 min-h-0">
-        {events.length === 0 ? (
+        {timelineEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Clock className="size-12 text-zinc-600 mb-4" />
-            <p className="text-zinc-400">No events recorded</p>
+            <p className="text-zinc-400">No alerts recorded</p>
           </div>
         ) : (
           <div className="space-y-1.5">
             {/* Timeline visualization */}
             <div className="mb-2">
               <div className="relative h-2 bg-zinc-800 rounded-full">
-                {events.map((event) => {
+                {timelineEvents.map((event) => {
                   const position = duration > 0 ? (event.timestamp / duration) * 100 : 0
                   return (
                     <div
@@ -90,7 +99,7 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
             </div>
 
             {/* Event list */}
-            {events.map((event) => {
+            {timelineEvents.map((event) => {
               const isActive = Math.abs(event.timestamp - currentTime) < 2
               return (
                 <Card
@@ -103,14 +112,14 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
                   <CardContent className="!px-2 !py-1.5">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`p-0.5 rounded flex-shrink-0 ${getSeverityColor(event.severity)} text-white flex items-center justify-center`}
+                        className={`p-0.5 rounded flex-shrink-0 ${getSeverityColor(event)} text-white flex items-center justify-center`}
                       >
                         {getEventIcon(event.type)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <Badge
-                            className={`${getSeverityColor(event.severity)} text-xs py-0 px-1.5 h-4`}
+                            className={`${getSeverityColor(event)} text-xs py-0 px-1.5 h-4`}
                             variant="default"
                           >
                             {event.severity}
@@ -137,4 +146,3 @@ export function EventTimeline({ events, currentTime, duration, onSeek }: EventTi
     </div>
   )
 }
-

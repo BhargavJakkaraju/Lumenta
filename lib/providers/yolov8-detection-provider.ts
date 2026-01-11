@@ -127,35 +127,47 @@ export class YOLOv8DetectionProvider implements DetectionProvider {
     const labels: string[] = []
     const confidences: number[] = []
 
-    // YOLOv8 output shape: [1, num_detections, 4 + num_classes]
-    // Where 4 are bbox coords and rest are class scores
+    // YOLOv8 output can be [1, num_detections, 4 + num_classes]
+    // or [1, 4 + num_classes, num_detections]
     const outputData = output.data
     const outputDims = output.dims
-
-    const numDetections = outputDims[1]
-    const numClasses = outputDims[2] - 4
+    const isTransposed = outputDims.length === 3 && outputDims[1] < outputDims[2]
+    const numDetections = isTransposed ? outputDims[2] : outputDims[1]
+    const numClasses = (isTransposed ? outputDims[1] : outputDims[2]) - 4
 
     // COCO class names (YOLOv8 trained on COCO dataset)
     const classNames = [
       "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
       "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-      // ... (truncated for brevity, full list has 80 classes)
+      "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+      "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+      "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+      "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+      "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+      "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
+      "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+      "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush",
     ]
 
+    const stride = isTransposed ? numDetections : outputDims[2]
     for (let i = 0; i < numDetections; i++) {
-      const offset = i * outputDims[2]
+      const base = isTransposed ? i : i * outputDims[2]
 
-      // Extract bounding box (normalized coordinates)
-      const x = outputData[offset] * imageWidth
-      const y = outputData[offset + 1] * imageHeight
-      const width = (outputData[offset + 2] - outputData[offset]) * imageWidth
-      const height = (outputData[offset + 3] - outputData[offset + 1]) * imageHeight
+      const read = (channel: number) => {
+        return isTransposed ? outputData[channel * stride + i] : outputData[base + channel]
+      }
+
+      // Extract bounding box (normalized center coords)
+      const cx = read(0) * imageWidth
+      const cy = read(1) * imageHeight
+      const w = read(2) * imageWidth
+      const h = read(3) * imageHeight
 
       // Find class with highest confidence
       let maxConf = 0
       let maxClass = 0
       for (let c = 0; c < numClasses; c++) {
-        const conf = outputData[offset + 4 + c]
+        const conf = read(4 + c)
         if (conf > maxConf) {
           maxConf = conf
           maxClass = c
@@ -164,6 +176,13 @@ export class YOLOv8DetectionProvider implements DetectionProvider {
 
       // Filter by confidence threshold
       if (maxConf > this.config.confidenceThreshold) {
+        if (!Number.isFinite(maxConf) || maxClass >= classNames.length) {
+          continue
+        }
+        const x = Math.max(0, cx - w / 2)
+        const y = Math.max(0, cy - h / 2)
+        const width = Math.min(imageWidth, w)
+        const height = Math.min(imageHeight, h)
         boxes.push({ x, y, width, height })
         labels.push(classNames[maxClass] || `class_${maxClass}`)
         confidences.push(maxConf)
@@ -173,4 +192,3 @@ export class YOLOv8DetectionProvider implements DetectionProvider {
     return { boxes, labels, confidences }
   }
 }
-

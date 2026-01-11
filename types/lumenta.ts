@@ -36,10 +36,12 @@ export interface BoundingBox {
 export interface VideoEvent {
   id: string
   timestamp: number // in seconds
-  type: "motion" | "person" | "vehicle" | "object" | "alert"
+  type: "motion" | "person" | "vehicle" | "object" | "alert" | "activity"
   severity: "low" | "medium" | "high"
   description: string
   confidence: number
   box?: { x: number; y: number; width: number; height: number }
   identity?: string // If face recognition matched
+  overlayOnly?: boolean
+  source?: "analyze" | "summary"
 }

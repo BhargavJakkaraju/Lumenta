@@ -43,6 +43,41 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
     const scaleX = canvas.width / videoWidth
     const scaleY = canvas.height / videoHeight
 
+    const overlayDots = activeEvents
+      .filter((event) => event.overlayOnly && event.box)
+      .map((event) => {
+        const { x, y, width, height } = event.box as NonNullable<VideoEvent["box"]>
+        const scaledX = x * scaleX
+        const scaledY = y * scaleY
+        const scaledWidth = width * scaleX
+        const scaledHeight = height * scaleY
+        return {
+          x: scaledX + scaledWidth / 2,
+          y: scaledY + scaledHeight / 2,
+          r: Math.max(2, Math.min(scaledWidth, scaledHeight) / 2),
+        }
+      })
+
+    const linkDistance = 64
+    if (overlayDots.length > 1) {
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.4)"
+      ctx.lineWidth = 1
+      for (let i = 0; i < overlayDots.length; i++) {
+        const a = overlayDots[i]
+        for (let j = i + 1; j < overlayDots.length; j++) {
+          const b = overlayDots[j]
+          const dx = a.x - b.x
+          const dy = a.y - b.y
+          if (dx * dx + dy * dy <= linkDistance * linkDistance) {
+            ctx.beginPath()
+            ctx.moveTo(a.x, a.y)
+            ctx.lineTo(b.x, b.y)
+            ctx.stroke()
+          }
+        }
+      }
+    }
+
     // Draw bounding boxes and labels
     activeEvents.forEach((event) => {
       if (!event.box) return
@@ -59,6 +94,19 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
       let color = "#3b82f6" // blue (low)
       if (event.severity === "medium") color = "#f59e0b" // orange
       if (event.severity === "high") color = "#ef4444" // red
+      if (event.type === "alert") color = "#2563eb"
+      if (event.overlayOnly) color = "#ef4444"
+
+      if (event.overlayOnly) {
+        const dotX = scaledX + scaledWidth / 2
+        const dotY = scaledY + scaledHeight / 2
+        const dotRadius = 2
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2)
+        ctx.fill()
+        return
+      }
 
       // Draw bounding box
       ctx.strokeStyle = color
@@ -99,4 +147,3 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
     />
   )
 }
-

@@ -4,6 +4,7 @@
  */
 
 import { providerCoordinator } from "@/lib/providers"
+import { LocalDetectionProvider } from "@/lib/providers/detection-provider"
 import type { VideoEvent } from "@/types/lumenta"
 
 export interface ProcessingResult {
@@ -25,12 +26,21 @@ export interface FrameProcessorOptions {
   privacyMode?: boolean
   knownIdentities?: Map<string, Float32Array>
   videoId?: string
+  analyzeNodes?: Array<{ prompt: string; sensitivity?: "low" | "medium" | "high" }>
 }
 
 export class FrameProcessor {
   private lastProcessedFrame: ImageData | null = null
   private eventCache: Map<number, VideoEvent[]> = new Map() // timestamp -> events
   private videoId: string | null = null
+  private motionOverlayProvider = new LocalDetectionProvider()
+  private pendingSemanticEvents: VideoEvent[] = []
+  private analyzeState: Map<string, { lastAt: number; inFlight: boolean }> = new Map()
+  private summaryState: { lastAt: number; inFlight: boolean; lastSummary: string } = {
+    lastAt: 0,
+    inFlight: false,
+    lastSummary: "",
+  }
 
   constructor(videoId: string) {
     this.videoId = videoId
@@ -49,7 +59,14 @@ export class FrameProcessor {
 
     // Step 2: Object Detection (YOLOv8 or local)
     const detectionProvider = providerCoordinator.getDetectionProvider()
-    const detections = await detectionProvider.detect(preprocessed)
+    const detections = detectionProvider.detectWithPrevious
+      ? await detectionProvider.detectWithPrevious(preprocessed, this.lastProcessedFrame)
+      : await detectionProvider.detect(preprocessed)
+
+    const motionOverlayDetections = await this.motionOverlayProvider.detectWithPrevious(
+      preprocessed,
+      this.lastProcessedFrame
+    )
 
     // Step 3: Face Recognition (if enabled and person detected)
     let identities: Array<{ identity: string; similarity: number; box: { x: number; y: number; width: number; height: number } }> = []
@@ -162,9 +179,42 @@ export class FrameProcessor {
           description: `Motion detected - ${label}`,
           confidence,
           box,
+          overlayOnly: label === "motion",
         })
       }
     }
+
+    for (let i = 0; i < motionOverlayDetections.boxes.length; i++) {
+      events.push({
+        id: `${this.videoId}-${timestamp}-motion-${i}`,
+        timestamp,
+        type: "motion",
+        severity: "low",
+        description: "Motion detected",
+        confidence: motionOverlayDetections.confidences[i] ?? 0.5,
+        box: motionOverlayDetections.boxes[i],
+        overlayOnly: true,
+      })
+    }
+
+    if (options.analyzeNodes && options.analyzeNodes.length > 0) {
+      options.analyzeNodes.forEach((node, index) => {
+        if (!node.prompt?.trim()) return
+        this.maybeRunSemanticAnalyze(
+          node.prompt,
+          node.sensitivity,
+          imageData,
+          timestamp,
+          index
+        ).catch((error) => {
+          console.debug("Semantic analyze error:", error)
+        })
+      })
+    }
+
+    this.maybeRunAutoSummary(imageData, timestamp).catch((error) => {
+      console.debug("Auto summary error:", error)
+    })
 
     // Step 6: Node Graph Rules Check
     const nodeGraphProvider = providerCoordinator.getNodeGraphProvider()
@@ -244,6 +294,11 @@ export class FrameProcessor {
 
     const processingTime = performance.now() - startTime
 
+    if (this.pendingSemanticEvents.length > 0) {
+      events.push(...this.pendingSemanticEvents)
+      this.pendingSemanticEvents = []
+    }
+
     // Cache events by timestamp
     this.eventCache.set(Math.floor(timestamp), events)
 
@@ -259,6 +314,143 @@ export class FrameProcessor {
     }
   }
 
+  private async maybeRunSemanticAnalyze(
+    prompt: string,
+    sensitivity: "low" | "medium" | "high" | undefined,
+    imageData: ImageData,
+    timestamp: number,
+    index: number
+  ): Promise<void> {
+    const key = prompt.trim()
+    const state = this.analyzeState.get(key) || { lastAt: 0, inFlight: false }
+    if (state.inFlight) return
+
+    const intervalMs = sensitivity === "high" ? 2000 : sensitivity === "low" ? 10000 : 5000
+    if (Date.now() - state.lastAt < intervalMs) return
+
+    state.inFlight = true
+    this.analyzeState.set(key, state)
+
+    try {
+      const dataUrl = this.imageDataToDataUrl(imageData)
+      const response = await fetch("/api/analyze-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          imageData: dataUrl,
+          videoId: this.videoId,
+          contextSummary: this.summaryState.lastSummary,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        this.onSemanticResult?.({ prompt, error: errorText || `HTTP ${response.status}` })
+        throw new Error(`Analyze request failed: ${response.status}`)
+      }
+
+      const result = (await response.json()) as {
+        confidence?: number
+        summary?: string
+      }
+
+      const confidence = typeof result.confidence === "number" ? result.confidence : 0.0
+      const threshold = sensitivity === "high" ? 0.4 : sensitivity === "low" ? 0.7 : 0.55
+
+      if (confidence >= threshold) {
+        const severity: VideoEvent["severity"] =
+          confidence > 0.8 ? "high" : confidence > 0.6 ? "medium" : "low"
+
+        this.pendingSemanticEvents.push({
+          id: `${this.videoId}-${timestamp}-analyze-${index}`,
+          timestamp,
+          type: "alert",
+          severity,
+          description: result.summary || `Analyze match: ${prompt}`,
+          confidence,
+          source: "analyze",
+        })
+      }
+    } catch (error) {
+    } finally {
+      state.lastAt = Date.now()
+      state.inFlight = false
+      this.analyzeState.set(key, state)
+    }
+  }
+
+  private async maybeRunAutoSummary(imageData: ImageData, timestamp: number): Promise<void> {
+    if (this.summaryState.inFlight) return
+    if (Date.now() - this.summaryState.lastAt < 3000) return
+
+    this.summaryState.inFlight = true
+
+    try {
+      const dataUrl = this.imageDataToDataUrl(imageData)
+      const response = await fetch("/api/describe-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageData: dataUrl,
+          videoId: this.videoId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Describe request failed: ${response.status}`)
+      }
+
+      const result = (await response.json()) as {
+        summary?: string
+        actions?: string[]
+        confidence?: number
+      }
+
+      const summaryText = (result.summary || "").trim()
+      const actions = Array.isArray(result.actions) ? result.actions : []
+
+      if (!summaryText && actions.length === 0) return
+      if (summaryText && summaryText === this.summaryState.lastSummary) return
+
+      const confidence = typeof result.confidence === "number" ? result.confidence : 0.5
+      const severity: VideoEvent["severity"] =
+        confidence > 0.8 ? "high" : confidence > 0.6 ? "medium" : "low"
+
+      const entries = actions.length > 0 ? actions.slice(0, 3) : [summaryText]
+      entries.forEach((entry, idx) => {
+        this.pendingSemanticEvents.push({
+          id: `${this.videoId}-${timestamp}-summary-${idx}`,
+          timestamp,
+          type: "activity",
+          severity,
+          description: entry,
+          confidence,
+          source: "summary",
+        })
+      })
+
+      if (summaryText) {
+        this.summaryState.lastSummary = summaryText
+      }
+    } finally {
+      this.summaryState.lastAt = Date.now()
+      this.summaryState.inFlight = false
+    }
+  }
+
+  private imageDataToDataUrl(imageData: ImageData): string {
+    const canvas = document.createElement("canvas")
+    canvas.width = imageData.width
+    canvas.height = imageData.height
+    const ctx = canvas.getContext("2d")
+    if (!ctx) {
+      throw new Error("Canvas context not available")
+    }
+    ctx.putImageData(imageData, 0, 0)
+    return canvas.toDataURL("image/jpeg", 0.6)
+  }
+
 
   getEventsForTimestamp(timestamp: number): VideoEvent[] {
     return this.eventCache.get(Math.floor(timestamp)) || []
@@ -269,4 +461,3 @@ export class FrameProcessor {
     this.lastProcessedFrame = null
   }
 }
-

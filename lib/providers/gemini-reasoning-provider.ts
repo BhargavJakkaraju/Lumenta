@@ -30,12 +30,11 @@ export class LocalReasoningProvider implements ReasoningProvider {
   }
 
   async reason(request: ReasoningRequest): Promise<ReasoningResponse> {
-    // Basic fallback reasoning
     return {
-      reasoning: "Using local fallback reasoning",
-      actions: ["continue_monitoring"],
+      reasoning: "",
+      actions: [],
       confidence: 0.5,
-      explanation: "Local reasoning provides basic decision making",
+      explanation: "",
     }
   }
 
@@ -221,4 +220,3 @@ Task: ${request.task}
     return prompt
   }
 }
-
