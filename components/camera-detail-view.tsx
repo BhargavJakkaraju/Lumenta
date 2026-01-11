@@ -120,6 +120,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [detectionStatus, setDetectionStatus] = useState("local")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [hasAnalyzed, setHasAnalyzed] = useState(false)
+  const nodesCreatedRef = useRef<Set<string>>(new Set())
   const { toast } = useToast()
   const lastAlertRef = useRef<string | null>(null)
   const [nodeGraphData, setNodeGraphData] = useState<{
@@ -203,6 +204,37 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       // Clear events - will be populated by video analysis
       setEvents([])
       setHasAnalyzed(false)
+
+      // Create initial nodes for jewelry store (camera-1) - only once
+      if (feedId === "camera-1" && !nodesCreatedRef.current.has(feedId)) {
+        nodesCreatedRef.current.add(feedId)
+        // Wait a bit for NodeCanvas to be ready
+        setTimeout(() => {
+          if (nodeCanvasRef.current) {
+            nodeCanvasRef.current.createNodes([
+              {
+                type: "analyze",
+                title: "Robbery Detection",
+                config: {
+                  prompt: "This camera should detect and analyze robberies inside the jewlery store",
+                  sensitivity: "high",
+                },
+              },
+              {
+                type: "action",
+                title: "Call Alert",
+                config: {
+                  option: "call",
+                  description: "Call this phone number +17609843627 and alert the recipient that the store is being robbed!",
+                },
+              },
+            ])
+          }
+        }, 500)
+      } else if (feedId !== "camera-1") {
+        // Reset the flag when switching away from camera-1
+        nodesCreatedRef.current.delete("camera-1")
+      }
     }
   }, [feedId])
 

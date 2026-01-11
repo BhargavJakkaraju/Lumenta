@@ -168,9 +168,10 @@ export const NodeCanvas = forwardRef<NodeCanvasHandle, NodeCanvasProps>(
     }
   }
 
-  const handleAddNode = (type: "analyze" | "action", config?: AnalyzeNodeConfig | ActionNodeConfig, title?: string) => {
-    const newId = `node-${Date.now()}-${nodeCounter}`
-    const position = getNextNodePosition()
+  const handleAddNode = (type: "analyze" | "action", config?: AnalyzeNodeConfig | ActionNodeConfig, title?: string, customPosition?: { x: number; y: number }) => {
+    // Generate unique ID using timestamp, counter, and random number to avoid collisions
+    const newId = `node-${Date.now()}-${nodeCounter}-${Math.random().toString(36).substring(2, 9)}`
+    const position = customPosition || getNextNodePosition()
 
     const defaultConfig =
       type === "analyze"
@@ -188,7 +189,14 @@ export const NodeCanvas = forwardRef<NodeCanvasHandle, NodeCanvasProps>(
       config: defaultConfig,
     }
 
-    setNodes((prevNodes) => [...prevNodes, newNode])
+    setNodes((prevNodes) => {
+      // Check if a node with the same ID already exists
+      if (prevNodes.some(n => n.id === newId)) {
+        console.warn(`Node with ID ${newId} already exists, skipping duplicate`)
+        return prevNodes
+      }
+      return [...prevNodes, newNode]
+    })
     setNodeCounter((prev) => prev + 1)
     return newId
   }
@@ -201,29 +209,85 @@ export const NodeCanvas = forwardRef<NodeCanvasHandle, NodeCanvasProps>(
       title?: string
     }>) => {
       const videoInputNode = nodes.find(n => n.type === "video_input")
-      const createdNodeIds: string[] = []
+      const createdNodes: Array<{ id: string; type: "analyze" | "action"; index: number }> = []
+      let analyzeNodeId: string | null = null
+      let actionNodeCount = 0
       
+      // Calculate positions based on canvas bounds
+      const getNodePosition = (index: number, type: "analyze" | "action", actionIndex: number) => {
+        if (!canvasBounds || canvasBounds.width === 0 || canvasBounds.height === 0) {
+          // Fallback positions
+          if (type === "analyze") {
+            return { x: 300, y: 200 }
+          } else {
+            return { x: 550, y: 150 + (actionIndex * 120) }
+          }
+        }
+        
+        const centerY = canvasBounds.height / 2
+        if (type === "analyze") {
+          // Position analyze node to the right of video input
+          return { x: 300, y: centerY - NODE_HEIGHT / 2 }
+        } else {
+          // Position action nodes to the right of analyze node, stacked vertically
+          const actionY = centerY - NODE_HEIGHT / 2 + (actionIndex * 120) - 60
+          return { x: 550, y: Math.max(40, Math.min(actionY, canvasBounds.height - NODE_HEIGHT - 40)) }
+        }
+      }
+      
+      // Step 1: Create all nodes first
       nodesToCreate.forEach((nodeSpec, index) => {
+        let actionIndex = 0
+        if (nodeSpec.type === "action") {
+          actionIndex = actionNodeCount
+          actionNodeCount++
+        }
+        
+        const position = getNodePosition(index, nodeSpec.type, actionIndex)
         const nodeId = handleAddNode(
           nodeSpec.type,
           nodeSpec.config,
-          nodeSpec.title
+          nodeSpec.title,
+          position
         )
-        createdNodeIds.push(nodeId)
         
-        // Connect to video input if it's the first analyze node, or to previous node
-        if (videoInputNode) {
-          if (nodeSpec.type === "analyze" && index === 0) {
-            // Connect video input to first analyze node
-            const newEdge = createEdge(videoInputNode.id, nodeId)
-            setEdges((prev) => [...prev, newEdge])
-          } else if (index > 0 && createdNodeIds[index - 1]) {
-            // Connect previous node to current node
-            const newEdge = createEdge(createdNodeIds[index - 1], nodeId)
-            setEdges((prev) => [...prev, newEdge])
-          }
+        createdNodes.push({ id: nodeId, type: nodeSpec.type, index })
+        
+        // Track analyze node ID
+        if (nodeSpec.type === "analyze") {
+          analyzeNodeId = nodeId
         }
       })
+      
+      // Step 2: Create all edges after nodes are created
+      // Use setTimeout to ensure nodes are in state before creating edges
+      setTimeout(() => {
+        createdNodes.forEach((createdNode) => {
+          if (createdNode.type === "analyze") {
+            // Connect video input to analyze node
+            if (videoInputNode) {
+              const newEdge = createEdge(videoInputNode.id, createdNode.id)
+              setEdges((prev) => {
+                if (isDuplicateEdge(prev, videoInputNode.id, createdNode.id)) {
+                  return prev
+                }
+                return [...prev, newEdge]
+              })
+            }
+          } else if (createdNode.type === "action") {
+            // Connect action nodes to the analyze node
+            if (analyzeNodeId) {
+              const newEdge = createEdge(analyzeNodeId, createdNode.id)
+              setEdges((prev) => {
+                if (isDuplicateEdge(prev, analyzeNodeId!, createdNode.id)) {
+                  return prev
+                }
+                return [...prev, newEdge]
+              })
+            }
+          }
+        })
+      }, 100)
     }
   }))
 
