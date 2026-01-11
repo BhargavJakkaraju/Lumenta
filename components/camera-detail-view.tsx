@@ -126,6 +126,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const frameProcessorRef = useRef<FrameProcessor | null>(null)
   const processingCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const processingIntervalRef = useRef<number | null>(null)
+  const processingAnimationRef = useRef<number | null>(null)
   const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
 
   // Memoize the graph change callback
@@ -310,12 +311,18 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       }
     }
 
-    // Process frames every 500ms (throttled for performance)
-    processingIntervalRef.current = window.setInterval(processFrame, 500)
+    const processLoop = () => {
+      processFrame().catch(() => null)
+      processingAnimationRef.current = window.requestAnimationFrame(processLoop)
+    }
+    processingAnimationRef.current = window.requestAnimationFrame(processLoop)
 
     return () => {
       if (processingIntervalRef.current) {
         clearInterval(processingIntervalRef.current)
+      }
+      if (processingAnimationRef.current) {
+        cancelAnimationFrame(processingAnimationRef.current)
       }
     }
   }, [feed, videoElement, feedId, privacyMode, nodeGraphData])
