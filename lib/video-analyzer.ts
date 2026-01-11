@@ -250,25 +250,37 @@ const FALLBACK_EVENTS_CAMERA_7: VideoEventData[] = [
 const FALLBACK_EVENTS_CAMERA_8: VideoEventData[] = [
   {
     timestamp: 0,
-    description: "Workers in orange vests actively engaged in packing boxes on tables",
+    description: "People with umbrellas walking past bus shelter, silver car parked across road near orange traffic cones",
     severity: "low",
     type: "activity",
   },
   {
-    timestamp: 11,
-    description: "Brief dialogue between workers (incomplete)",
+    timestamp: 10,
+    description: "Yellow taxi arrives and parks next to silver car",
+    severity: "low",
+    type: "vehicle",
+  },
+  {
+    timestamp: 16,
+    description: "Elderly man with glasses walks into frame using cane",
+    severity: "low",
+    type: "person",
+  },
+  {
+    timestamp: 24,
+    description: "Two men exit bus shelter, another person enters carrying two bags",
     severity: "low",
     type: "activity",
   },
   {
-    timestamp: 20,
-    description: "Workers handling and organizing boxes, some standing near stacks of cardboard boxes",
+    timestamp: 40,
+    description: "Three individuals emerge from bus stop area, two women sharing umbrella and another woman following behind",
     severity: "low",
     type: "activity",
   },
   {
-    timestamp: 30,
-    description: "Yellow pallet jack visible and idle nearby, two individuals walking towards each other in background",
+    timestamp: 60,
+    description: "More pedestrians passing through scene, including those exiting vehicles at intersections",
     severity: "low",
     type: "activity",
   },
@@ -367,8 +379,8 @@ export async function analyzeVideoWithGemini(
     videoDescription = `The video depicts a warehouse setting where workers, dressed in orange vests, are actively engaged in packing boxes on tables. Early in the video, at around 11 seconds, there is a brief dialogue, though it is incomplete. Throughout the video, workers can be seen handling and organizing boxes, with some standing near stacks of cardboard boxes and others working around more stacked boxes. A yellow pallet jack is visible and idle nearby. In the background, two individuals are walking towards each other, seemingly engaged in conversation. The activities shown are consistent, reflecting the repetitive and organized nature of the work in the warehouse.`
     focusAreas = "- Warehouse operations and worker activities\n- Box packing and organization\n- Worker interactions and dialogue\n- Equipment usage (pallet jacks, boxes)\n- General warehouse workflow and activities"
   } else if (feedId === "camera-8") {
-    videoDescription = `The video depicts a warehouse setting where workers, dressed in orange vests, are actively engaged in packing boxes on tables. Early in the video, at around 11 seconds, there is a brief dialogue, though it is incomplete. Throughout the video, workers can be seen handling and organizing boxes, with some standing near stacks of cardboard boxes and others working around more stacked boxes. A yellow pallet jack is visible and idle nearby. In the background, two individuals are walking towards each other, seemingly engaged in conversation. The activities shown are consistent, reflecting the repetitive and organized nature of the work in the warehouse.`
-    focusAreas = "- Warehouse operations and worker activities\n- Box packing and organization\n- Worker interactions and dialogue\n- Equipment usage (pallet jacks, boxes)\n- General warehouse workflow and activities"
+    videoDescription = `The video captures a rainy day scene at a bus stop. At the beginning [0s (00:00)], people with umbrellas are seen walking past the bus shelter, and a silver car is parked across the road near some orange traffic cones. Around [10s (00:10)], a yellow taxi arrives and parks next to the silver car. At [16s (00:16)], an elderly man with glasses walks into the frame using a cane. Midway through [24s (00:24)], two men exit the bus shelter, and another person enters carrying two bags. Towards the end [40s (00:40)], three individuals emerge from the bus stop area, with two women sharing an umbrella and another woman following behind them. The video concludes [60s (01:00)] with more pedestrians passing through the scene, including those exiting vehicles at intersections.`
+    focusAreas = "- Pedestrian activity and movement\n- Vehicle arrivals and parking\n- Bus stop activities\n- Weather conditions (rain, umbrellas)\n- People entering and exiting bus shelter\n- Traffic and intersection activity"
   } else if (feedId === "camera-9") {
     videoDescription = `The video shows a man in a backyard setting near a pool. Initially, he is seen holding a pool net and appears to be preparing to clean the pool, possibly talking to someone off-camera. This scene lasts until about 18 seconds. At 18 seconds, the man then jumps into the pool, which is completed by 22 seconds.`
     focusAreas = "- Pool maintenance activities\n- Person interactions with pool equipment\n- Swimming and pool entry\n- Backyard activities\n- General pool-related activities"

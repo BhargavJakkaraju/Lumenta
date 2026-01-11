@@ -237,9 +237,9 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     }
   }, [feed, feedId, duration, toast])
 
-  // Analyze video when duration is available for camera-1 (Main Entrance)
+  // Analyze video when duration is available for all cameras (camera-1 through camera-9)
   useEffect(() => {
-    if (feed?.id === "camera-1" && duration > 0 && !hasAnalyzed && !isAnalyzing) {
+    if ((feed?.id === "camera-1" || feed?.id === "camera-2" || feed?.id === "camera-3" || feed?.id === "camera-4" || feed?.id === "camera-5" || feed?.id === "camera-6" || feed?.id === "camera-7" || feed?.id === "camera-8" || feed?.id === "camera-9") && duration > 0 && !hasAnalyzed && !isAnalyzing) {
       handleAnalyzeVideo()
     }
   }, [feed?.id, duration, hasAnalyzed, isAnalyzing, handleAnalyzeVideo])
