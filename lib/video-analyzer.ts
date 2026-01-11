@@ -25,7 +25,7 @@ const FALLBACK_EVENTS_CAMERA_1: VideoEventData[] = [
   },
   {
     timestamp: 12,
-    description: "Individuals continue breaking glass display cases",
+    description: "The individuals begin taking jewelry from the display cases",
     severity: "high",
     type: "alert",
   },
@@ -58,7 +58,7 @@ const FALLBACK_EVENTS_CAMERA_2: VideoEventData[] = [
   },
   {
     timestamp: 29,
-    description: "Woman playfully interacts with the child, tossing them onto the bed, causing both to fall off",
+    description: "Woman playfully tosses child onto bed; both fall off.",
     severity: "low",
     type: "activity",
   },
@@ -91,8 +91,8 @@ const FALLBACK_EVENTS_CAMERA_3: VideoEventData[] = [
   },
   {
     timestamp: 17,
-    description: "Person puts items back into bag and walks away",
-    severity: "medium",
+    description: "Person walks away with the bag.",
+    severity: "low",
     type: "activity",
   },
   {

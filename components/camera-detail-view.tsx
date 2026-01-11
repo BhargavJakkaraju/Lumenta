@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
+import { executeActionNode } from "@/lib/mcp/client"
 import { EventTimeline } from "@/components/event-timeline"
 import { analyzeVideoWithGemini, convertToVideoEvents } from "@/lib/video-analyzer"
 import { VideoOverlay } from "@/components/video-overlay"
@@ -136,6 +137,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const motionPrevFrameRef = useRef<ImageData | null>(null)
   const lastForcedDetectionRef = useRef(0)
   const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
+  const initialNodesCreatedRef = useRef(false)
+  const lastTestActionTriggerRef = useRef(0)
 
   // Memoize the graph change callback
   const handleGraphChange = useCallback((nodes: Node[], edges: Edge[]) => {
@@ -251,6 +254,401 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       handleAnalyzeVideo()
     }
   }, [feed?.id, duration, hasAnalyzed, isAnalyzing, handleAnalyzeVideo])
+
+  // Reset initial nodes flag when feedId changes
+  useEffect(() => {
+    initialNodesCreatedRef.current = false
+  }, [feedId])
+
+  // Create initial nodes for camera-1 (Jewelry Store)
+  useEffect(() => {
+    if (feed?.id === "camera-1" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Robbery Detection",
+              config: {
+                prompt: "analyze the video to see if the store is being robbed",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Call Alert",
+              config: {
+                option: "call",
+                description: "call +17609843627 and alert the recipient that the store is being robbed",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-2 (Bedroom)
+  useEffect(() => {
+    if (feed?.id === "camera-2" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Baby Fall Detection",
+              config: {
+                prompt: "check the camera to see if the baby falls off the bed",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Email Alert",
+              config: {
+                option: "email",
+                description: "email mario.olivaspd@gmail.com that the baby has fallen off the bed",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-3 (Front Porch)
+  useEffect(() => {
+    if (feed?.id === "camera-3" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Package Theft Detection",
+              config: {
+                prompt: "Check to see if anyone steals my package",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Text Alert",
+              config: {
+                option: "text",
+                description: "text +17609843627 and alert me if someone steals my package",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-4 (Warehouse 1)
+  useEffect(() => {
+    if (feed?.id === "camera-4" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Hazard Detection",
+              config: {
+                prompt: "Look out for any hazardous items or events in the workspace",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Call Alert",
+              config: {
+                option: "call",
+                description: "call +17609843627 and alert me if there is any sign of hazardous activity",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-7 (Warehouse 2)
+  useEffect(() => {
+    if (feed?.id === "camera-7" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Hazard Detection",
+              config: {
+                prompt: "Look out for any hazardous items or events in the workspace",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Call Alert",
+              config: {
+                option: "call",
+                description: "call +17609843627 and alert me if there is any sign of hazardous activity",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-5 (Living Room)
+  useEffect(() => {
+    if (feed?.id === "camera-5" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Dangerous Activity Detection",
+              config: {
+                prompt: "analyze the room for any dangerous activity relating to the subject of the video",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Text Alert",
+              config: {
+                option: "text",
+                description: "text +17609843627 saying that the subject is caught in a dangerous act",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-8 (City Intersection)
+  useEffect(() => {
+    if (feed?.id === "camera-8" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Dangerous Activity Detection",
+              config: {
+                prompt: "analyze the room for any dangerous activity relating to the subject of the video",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Text Alert",
+              config: {
+                option: "text",
+                description: "text +17609843627 saying that the subject is caught in a dangerous act",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-6 (Backyard Patio)
+  useEffect(() => {
+    if (feed?.id === "camera-6" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Dog Activity Detection",
+              config: {
+                prompt: "Alert me of any activity relating to the dog in the video",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Email Alert",
+              config: {
+                option: "email",
+                description: "email mario.olivaspd@gmail.com with information on what is happening with the dog",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Create initial nodes for camera-9 (Pool)
+  useEffect(() => {
+    if (feed?.id === "camera-9" && nodeCanvasRef.current && !initialNodesCreatedRef.current) {
+      initialNodesCreatedRef.current = true
+      // Use setTimeout to ensure NodeCanvas is fully mounted
+      setTimeout(() => {
+        if (nodeCanvasRef.current) {
+          nodeCanvasRef.current.createNodes([
+            {
+              type: "analyze",
+              title: "Pool Fall Detection",
+              config: {
+                prompt: "Alert me if anyone falls in the water",
+                sensitivity: "high",
+              },
+            },
+            {
+              type: "action",
+              title: "Email Alert",
+              config: {
+                option: "email",
+                description: "email mario.olivaspd@gmail.com with information on what is happening with the dog if someone falls in the pool",
+              },
+            },
+          ])
+        }
+      }, 100)
+    }
+  }, [feed?.id])
+
+  // Handle video click to start playback from beginning
+  const handleVideoClick = useCallback(() => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.seek(0)
+      const video = videoPlayerRef.current.getVideoElement()
+      if (video) {
+        video.play().catch(() => null)
+      }
+    }
+  }, [])
+
+  // Monitor for specific events and trigger test action
+  useEffect(() => {
+    // Define target events for different cameras
+    let targetEvent: VideoEvent | undefined
+    const threshold = 0.5
+
+    if (feed?.id === "camera-1") {
+      // Camera-1: "The individuals begin taking jewelry from the display cases" at 12 seconds
+      const targetTime = 12
+      const isAtTargetTime = currentTime >= targetTime - threshold && currentTime <= targetTime + threshold
+      
+      if (isAtTargetTime) {
+        targetEvent = events.find(
+          (event) =>
+            !event.overlayOnly &&
+            Math.abs(event.timestamp - targetTime) <= threshold &&
+            (event.description.toLowerCase().includes("taking jewelry") ||
+              event.description.toLowerCase().includes("begin taking jewelry") ||
+              event.description.toLowerCase().includes("taking jewelry from display") ||
+              event.description.toLowerCase().includes("jewelry from display cases"))
+        )
+      }
+    } else if (feed?.id === "camera-2") {
+      // Camera-2: "Woman playfully tosses child onto bed; both fall off." at 29 seconds
+      const targetTime = 29
+      const isAtTargetTime = currentTime >= targetTime - threshold && currentTime <= targetTime + threshold
+      
+      if (isAtTargetTime) {
+        targetEvent = events.find(
+          (event) =>
+            !event.overlayOnly &&
+            Math.abs(event.timestamp - targetTime) <= threshold &&
+            (event.description.toLowerCase().includes("tosses child") ||
+              event.description.toLowerCase().includes("tosses child onto bed") ||
+              event.description.toLowerCase().includes("both fall off") ||
+              event.description.toLowerCase().includes("woman playfully tosses"))
+        )
+      }
+    } else if (feed?.id === "camera-3") {
+      // Camera-3: "Person walks away with the bag." at 17 seconds
+      const targetTime = 17
+      const isAtTargetTime = currentTime >= targetTime - threshold && currentTime <= targetTime + threshold
+      
+      if (isAtTargetTime) {
+        targetEvent = events.find(
+          (event) =>
+            !event.overlayOnly &&
+            Math.abs(event.timestamp - targetTime) <= threshold &&
+            (event.description.toLowerCase().includes("walks away with the bag") ||
+              event.description.toLowerCase().includes("walks away with bag") ||
+              event.description.toLowerCase().includes("person walks away"))
+        )
+      }
+    }
+
+    if (!targetEvent) {
+      return
+    }
+
+    // Check if event is visible in timeline (currentTime >= event.timestamp)
+    if (currentTime < targetEvent.timestamp) {
+      return
+    }
+
+    // Prevent multiple triggers within 2 seconds
+    const now = Date.now()
+    if (now - lastTestActionTriggerRef.current < 2000) {
+      return
+    }
+    lastTestActionTriggerRef.current = now
+
+    // Find all action nodes in the graph
+    const actionNodes = nodeGraphData.nodes.filter(
+      (node) => node.type === "action" && node.config && "option" in node.config && "description" in node.config
+    )
+
+    if (actionNodes.length === 0) {
+      console.log("No action nodes found to test")
+      return
+    }
+
+    // Execute test action for each action node
+    const executeActions = async () => {
+      for (const node of actionNodes) {
+        const actionConfig = node.config as { option: "call" | "email" | "text"; description: string }
+        if (actionConfig.description.trim()) {
+          try {
+            const result = await executeActionNode(actionConfig)
+            console.log(`Test action executed for node: ${node.title || node.id}`)
+            toast({
+              title: result.success ? "Test Action Executed" : "Test Action Failed",
+              description: result.message || (result.success ? "Action was triggered successfully" : "Failed to execute action"),
+              variant: result.success ? "default" : "destructive",
+            })
+          } catch (error: any) {
+            console.error(`Failed to execute test action for node ${node.id}:`, error)
+            toast({
+              title: "Test Action Failed",
+              description: error.message || "Failed to execute action",
+              variant: "destructive",
+            })
+          }
+        }
+      }
+    }
+
+    executeActions()
+  }, [currentTime, events, nodeGraphData.nodes, toast, feed?.id])
 
   // Frame processing loop
   useEffect(() => {
@@ -489,7 +887,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
         <div className="flex-1 overflow-auto min-w-0">
           <div className="p-6 space-y-6">
             {/* Video Player - Full Size */}
-            <div className="h-[600px] relative">
+            <div className="h-[600px] relative" onClick={handleVideoClick}>
               <VideoPlayer
                 ref={videoPlayerRef}
                 videoUrl={feed.videoUrl}
