@@ -783,6 +783,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       return
     }
 
+    const motionTrailSeconds = 1.5
     const video = videoElement
     const provider = motionProviderRef.current
     const canvas = document.createElement("canvas")
@@ -792,6 +793,10 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     motionCanvasRef.current = canvas
 
     const processMotionFrame = () => {
+      if (document.hidden || video.paused || video.ended) {
+        motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+        return
+      }
       if (!video.readyState || !video.videoWidth || !video.videoHeight) {
         motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
         return
@@ -828,7 +833,11 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             box,
             overlayOnly: true,
           }))
-          setMotionEvents(nextEvents)
+          setMotionEvents((prev) => {
+            const cutoff = Math.max(0, timestamp - motionTrailSeconds)
+            const merged = prev.length ? [...prev, ...nextEvents] : nextEvents
+            return merged.filter((event) => event.timestamp >= cutoff)
+          })
         })
         .catch(() => null)
         .finally(() => {

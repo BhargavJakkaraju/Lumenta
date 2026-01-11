@@ -83,17 +83,37 @@ export function VideoOverlay({
         }
       })
 
+    const dotPalette = [
+      "rgba(14, 165, 233, 0.65)",
+      "rgba(56, 189, 248, 0.65)",
+      "rgba(34, 211, 238, 0.65)",
+      "rgba(59, 130, 246, 0.65)",
+      "rgba(37, 99, 235, 0.65)",
+      "rgba(226, 232, 240, 0.55)",
+      "rgba(148, 163, 184, 0.55)",
+    ]
+    const linePalette = [
+      "rgba(14, 165, 233, 0.2)",
+      "rgba(56, 189, 248, 0.2)",
+      "rgba(34, 211, 238, 0.2)",
+      "rgba(59, 130, 246, 0.2)",
+      "rgba(37, 99, 235, 0.2)",
+      "rgba(226, 232, 240, 0.18)",
+      "rgba(148, 163, 184, 0.18)",
+    ]
     const linkDistance = 64
+    const lineSampleChance = 0.55
     if (overlayDots.length > 1) {
-      ctx.strokeStyle = "rgba(34, 211, 238, 0.28)"
       ctx.lineWidth = 1
       for (let i = 0; i < overlayDots.length; i++) {
         const a = overlayDots[i]
         for (let j = i + 1; j < overlayDots.length; j++) {
           const b = overlayDots[j]
+          if (((i + j) % 20) / 20 > lineSampleChance) continue
           const dx = a.x - b.x
           const dy = a.y - b.y
           if (dx * dx + dy * dy <= linkDistance * linkDistance) {
+            ctx.strokeStyle = linePalette[(i + j) % linePalette.length]
             ctx.beginPath()
             ctx.moveTo(a.x, a.y)
             ctx.lineTo(b.x, b.y)
@@ -104,6 +124,7 @@ export function VideoOverlay({
     }
 
     // Draw bounding boxes and labels
+    let overlayDotIndex = 0
     activeEvents.forEach((event) => {
       if (!event.box) return
 
@@ -126,10 +147,16 @@ export function VideoOverlay({
         const dotX = offsetX + scaledX + scaledWidth / 2
         const dotY = offsetY + scaledY + scaledHeight / 2
         const dotRadius = 2
-        ctx.fillStyle = "rgba(34, 211, 238, 0.65)"
+        const dotColor = dotPalette[overlayDotIndex % dotPalette.length]
+        ctx.save()
+        ctx.shadowColor = dotColor
+        ctx.shadowBlur = 6
+        ctx.fillStyle = dotColor
         ctx.beginPath()
         ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2)
         ctx.fill()
+        ctx.restore()
+        overlayDotIndex += 1
         return
       }
 
