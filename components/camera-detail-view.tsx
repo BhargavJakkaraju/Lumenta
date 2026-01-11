@@ -8,6 +8,7 @@ import { NodeCanvas, type Node, type NodeCanvasHandle } from "@/components/nodeG
 import { WorkflowChatPanel } from "@/components/WorkflowChatPanel"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
+import { ObjectDetections } from "@/components/object-detections"
 import type { Edge } from "@/components/nodeGraph/edges"
 import { FrameProcessor } from "@/lib/frame-processor"
 import { providerCoordinator } from "@/lib/providers"
@@ -110,8 +111,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [duration, setDuration] = useState(0)
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
-  const [privacyMode, setPrivacyMode] = useState(true)
-  const [yoloEnabled, setYoloEnabled] = useState(false)
+  const [privacyMode] = useState(true)
+  const [yoloEnabled, setYoloEnabled] = useState(true)
   const [yoloModelPath, setYoloModelPath] = useState("/models/yolov8n.onnx")
   const [yoloInputSize, setYoloInputSize] = useState(640)
   const [yoloConfidence, setYoloConfidence] = useState(0.5)
@@ -150,12 +151,19 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     const config = providerCoordinator.getConfig()
     const status = providerCoordinator.getStatus()
     if (config.yolov8) {
-      setYoloEnabled(!!config.yolov8.enabled)
       setYoloModelPath(config.yolov8.modelPath || "/models/yolov8n.onnx")
       setYoloInputSize(config.yolov8.inputSize || 640)
       setYoloConfidence(config.yolov8.confidenceThreshold ?? 0.5)
     }
     setDetectionStatus(status.detection)
+    applyYoloConfig({
+      enabled: true,
+      modelPath: config.yolov8?.modelPath || "/models/yolov8n.onnx",
+      inputSize: config.yolov8?.inputSize || 640,
+      confidenceThreshold: config.yolov8?.confidenceThreshold ?? 0.5,
+    }).catch((error) => {
+      console.error("Failed to update YOLOv8 config:", error)
+    })
   }, [])
 
 
@@ -393,33 +401,13 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-lg font-semibold text-white">Node Graph</p>
-                <button
-                  onClick={() => setPrivacyMode(!privacyMode)}
-                  className="text-xs px-3 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                >
-                  Privacy: {privacyMode ? "ON" : "OFF"}
-                </button>
               </div>
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-white">YOLOv8 Detection</p>
-                  <button
-                    onClick={() => {
-                      const nextEnabled = !yoloEnabled
-                      setYoloEnabled(nextEnabled)
-                      applyYoloConfig({
-                        enabled: nextEnabled,
-                        modelPath: yoloModelPath,
-                        inputSize: yoloInputSize,
-                        confidenceThreshold: yoloConfidence,
-                      }).catch((error) => {
-                        console.error("Failed to update YOLOv8 config:", error)
-                      })
-                    }}
-                    className="text-xs px-3 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                  >
-                    {yoloEnabled ? "Disable" : "Enable"}
-                  </button>
+                  <span className="text-xs px-3 py-1 rounded bg-zinc-800 text-zinc-300">
+                    Enabled
+                  </span>
                 </div>
                 <div className="text-xs text-zinc-400">
                   Status: {detectionStatus}
@@ -505,19 +493,27 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           </div>
         </div>
 
-        {/* Right: Event Timeline */}
+        {/* Right: Event Timeline + Object Detections */}
         <div className="w-96 flex-shrink-0 border-l border-zinc-800 overflow-hidden flex flex-col">
-          <EventTimeline
-            events={events}
-            currentTime={currentTime}
-            duration={duration}
-            onSeek={(time) => {
-              if (videoPlayerRef.current) {
-                videoPlayerRef.current.seek(time)
-              }
-              setCurrentTime(time)
-            }}
-          />
+          <div className="flex-1 min-h-0">
+            <EventTimeline
+              events={events}
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={(time) => {
+                if (videoPlayerRef.current) {
+                  videoPlayerRef.current.seek(time)
+                }
+                setCurrentTime(time)
+              }}
+            />
+          </div>
+          <div className="flex-1 min-h-0 border-t border-zinc-800">
+            <ObjectDetections
+              events={events}
+              currentTime={currentTime}
+            />
+          </div>
         </div>
       </div>
     </div>
