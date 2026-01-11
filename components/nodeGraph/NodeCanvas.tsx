@@ -18,7 +18,7 @@ export interface AnalyzeNodeConfig {
 }
 
 export interface ActionNodeConfig {
-  option: "option1" | "option2" | "option3" | "option4" | "option5"
+  option: "call" | "email" | "text"
   description: string
 }
 
@@ -176,7 +176,7 @@ export const NodeCanvas = forwardRef<NodeCanvasHandle, NodeCanvasProps>(
       type === "analyze"
         ? (config || { prompt: "", sensitivity: "medium" } as AnalyzeNodeConfig)
         : type === "action"
-          ? (config || { option: "option1", description: "" } as ActionNodeConfig)
+          ? (config || { option: "call", description: "" } as ActionNodeConfig)
           : {}
 
     const newNode: Node = {

@@ -9,7 +9,7 @@ interface AnalyzeNodeConfig {
 }
 
 interface ActionNodeConfig {
-  option: "option1" | "option2" | "option3" | "option4" | "option5"
+  option: "call" | "email" | "text"
   description: string
 }
 
@@ -189,7 +189,7 @@ export const DraggableNode = forwardRef<DraggableNodeHandle, DraggableNodeProps>
     if (type === "action") {
       const actionConfig = config as ActionNodeConfig
       if (actionConfig.description || actionConfig.option) {
-        const optionLabel = actionConfig.option.replace("option", "Option ")
+        const optionLabel = actionConfig.option.charAt(0).toUpperCase() + actionConfig.option.slice(1)
         const descPreview = actionConfig.description
           ? actionConfig.description.length > 40
             ? actionConfig.description.substring(0, 40) + "..."

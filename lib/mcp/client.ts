@@ -177,3 +177,40 @@ export function createMCPEventSource(
 
   return eventSource
 }
+
+/**
+ * Execute an action node by parsing its description with Gemini and routing to MCP
+ */
+export async function executeActionNode(
+  config: { option: "call" | "email" | "text"; description: string },
+  geminiApiKey?: string
+): Promise<{
+  success: boolean
+  message: string
+  result?: any
+  error?: string
+}> {
+  try {
+    const response = await fetch("/api/mcp/execute-action", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        config,
+        geminiApiKey,
+      }),
+    })
+
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(data.error || data.message || "Failed to execute action")
+    }
+
+    return data
+  } catch (error: any) {
+    console.error(`Failed to execute action node:`, error)
+    throw error
+  }
+}

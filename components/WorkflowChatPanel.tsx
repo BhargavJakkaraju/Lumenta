@@ -115,25 +115,22 @@ Current Node Graph State:
       "type": "action",
       "title": "Descriptive title for the action node",
       "config": {
-        "option": "option1",
-        "description": "What action to take (e.g., 'Send a text message when person falls detected')"
+        "option": "text",
+        "description": "What action to take (e.g., 'Send a text message to +1234567890 when person falls detected')"
       }
     }
   ]
 }
 
 Action node option mapping:
-- "option1" = Text message / SMS
-- "option2" = Email notification
-- "option3" = Phone call
-- "option4" = Alert / Notification
-- "option5" = Custom action
+- "text" = Text message / SMS
+- "email" = Email notification
+- "call" = Phone call
 
-If the user mentions "text message", "SMS", "text", use option1.
-If the user mentions "email", "mail", use option2.
-If the user mentions "phone call", "call", use option3.
-If the user mentions "alert", "notification", use option4.
-Otherwise, use option1 as default.
+If the user mentions "text message", "SMS", "text", use "text".
+If the user mentions "email", "mail", use "email".
+If the user mentions "phone call", "call", use "call".
+Otherwise, use "text" as default.
 
 Always create nodes in order: analyze node first, then action node(s).
 Connect them: video_input -> analyze -> action`

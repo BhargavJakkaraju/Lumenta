@@ -18,6 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { executeActionNode } from "@/lib/mcp/client"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react"
 
 interface AnalyzeNodeConfig {
   prompt: string
@@ -25,7 +28,7 @@ interface AnalyzeNodeConfig {
 }
 
 interface ActionNodeConfig {
-  option: "option1" | "option2" | "option3" | "option4" | "option5"
+  option: "call" | "email" | "text"
   description: string
 }
 
@@ -52,9 +55,15 @@ export function NodeConfigModal({
     sensitivity: "medium",
   })
   const [actionConfig, setActionConfig] = useState<ActionNodeConfig>({
-    option: "option1",
+    option: "call",
     description: "",
   })
+  const [isTesting, setIsTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{
+    success: boolean
+    message: string
+    error?: string
+  } | null>(null)
 
   // Initialize local state when modal opens or config changes
   useEffect(() => {
@@ -65,7 +74,7 @@ export function NodeConfigModal({
         )
       } else if (nodeType === "action") {
         setActionConfig(
-          (config as ActionNodeConfig) || { option: "option1", description: "" }
+          (config as ActionNodeConfig) || { option: "call", description: "" }
         )
       }
     }
@@ -92,7 +101,39 @@ export function NodeConfigModal({
         setActionConfig(config as ActionNodeConfig)
       }
     }
+    setTestResult(null)
     onClose()
+  }
+
+  const handleTestAction = async () => {
+    if (!actionConfig.description.trim()) {
+      setTestResult({
+        success: false,
+        message: "Please enter a description before testing",
+        error: "Description is required",
+      })
+      return
+    }
+
+    setIsTesting(true)
+    setTestResult(null)
+
+    try {
+      const result = await executeActionNode(actionConfig)
+      setTestResult({
+        success: result.success,
+        message: result.message,
+        error: result.error,
+      })
+    } catch (error: any) {
+      setTestResult({
+        success: false,
+        message: "Failed to test action",
+        error: error.message || "Unknown error",
+      })
+    } finally {
+      setIsTesting(false)
+    }
   }
 
   return (
@@ -166,7 +207,7 @@ export function NodeConfigModal({
               <Select
                 value={actionConfig.option}
                 onValueChange={(
-                  value: "option1" | "option2" | "option3" | "option4" | "option5"
+                  value: "call" | "email" | "text"
                 ) => setActionConfig({ ...actionConfig, option: value })}
               >
                 <SelectTrigger
@@ -176,20 +217,14 @@ export function NodeConfigModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-800 border-zinc-700">
-                  <SelectItem value="option1" className="text-white hover:bg-zinc-700">
-                    Option 1
+                  <SelectItem value="call" className="text-white hover:bg-zinc-700">
+                    Call
                   </SelectItem>
-                  <SelectItem value="option2" className="text-white hover:bg-zinc-700">
-                    Option 2
+                  <SelectItem value="email" className="text-white hover:bg-zinc-700">
+                    Email
                   </SelectItem>
-                  <SelectItem value="option3" className="text-white hover:bg-zinc-700">
-                    Option 3
-                  </SelectItem>
-                  <SelectItem value="option4" className="text-white hover:bg-zinc-700">
-                    Option 4
-                  </SelectItem>
-                  <SelectItem value="option5" className="text-white hover:bg-zinc-700">
-                    Option 5
+                  <SelectItem value="text" className="text-white hover:bg-zinc-700">
+                    Text
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -202,13 +237,61 @@ export function NodeConfigModal({
               <Textarea
                 id="action-description"
                 value={actionConfig.description}
-                onChange={(e) =>
+                onChange={(e) => {
                   setActionConfig({ ...actionConfig, description: e.target.value })
-                }
-                placeholder="Enter description..."
+                  setTestResult(null) // Clear test result when description changes
+                }}
+                placeholder="Enter description... (e.g., 'Call +1-555-123-4567 and tell them the store is getting robbed')"
                 className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 min-h-[100px]"
               />
             </div>
+
+            {/* Test Button */}
+            <div className="space-y-2">
+              <Button
+                onClick={handleTestAction}
+                disabled={isTesting || !actionConfig.description.trim()}
+                className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+              >
+                {isTesting ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    Test Action
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Test Result */}
+            {testResult && (
+              <Alert
+                className={
+                  testResult.success
+                    ? "bg-green-900/20 border-green-700"
+                    : "bg-red-900/20 border-red-700"
+                }
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="size-4 text-green-400" />
+                ) : (
+                  <XCircle className="size-4 text-red-400" />
+                )}
+                <AlertTitle className="text-white">
+                  {testResult.success ? "Test Successful" : "Test Failed"}
+                </AlertTitle>
+                <AlertDescription className="text-zinc-300">
+                  {testResult.message}
+                  {testResult.error && (
+                    <div className="text-red-400 mt-1 text-xs">{testResult.error}</div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 
