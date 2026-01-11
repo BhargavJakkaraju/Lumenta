@@ -39,9 +39,25 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
       (event) => Math.abs(event.timestamp - currentTime) < 0.5 && event.box
     )
 
+    // Calculate displayed video area inside the canvas (object-contain)
+    const videoAspect = videoWidth / videoHeight
+    const canvasAspect = canvas.width / canvas.height
+    const displayWidth =
+      canvasAspect > videoAspect ? canvas.height * videoAspect : canvas.width
+    const displayHeight =
+      canvasAspect > videoAspect ? canvas.height : canvas.width / videoAspect
+    const offsetX = (canvas.width - displayWidth) / 2
+    const offsetY = (canvas.height - displayHeight) / 2
+
+    // Clip to video area so overlays don't bleed into letterbox bars
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(offsetX, offsetY, displayWidth, displayHeight)
+    ctx.clip()
+
     // Calculate scale factors (video actual size vs displayed size)
-    const scaleX = canvas.width / videoWidth
-    const scaleY = canvas.height / videoHeight
+    const scaleX = displayWidth / videoWidth
+    const scaleY = displayHeight / videoHeight
 
     const overlayDots = activeEvents
       .filter((event) => event.overlayOnly && event.box)
@@ -52,15 +68,15 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
         const scaledWidth = width * scaleX
         const scaledHeight = height * scaleY
         return {
-          x: scaledX + scaledWidth / 2,
-          y: scaledY + scaledHeight / 2,
+          x: offsetX + scaledX + scaledWidth / 2,
+          y: offsetY + scaledY + scaledHeight / 2,
           r: Math.max(2, Math.min(scaledWidth, scaledHeight) / 2),
         }
       })
 
     const linkDistance = 64
     if (overlayDots.length > 1) {
-      ctx.strokeStyle = "rgba(239, 68, 68, 0.4)"
+      ctx.strokeStyle = "rgba(34, 211, 238, 0.4)"
       ctx.lineWidth = 1
       for (let i = 0; i < overlayDots.length; i++) {
         const a = overlayDots[i]
@@ -95,11 +111,11 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
       if (event.severity === "medium") color = "#f59e0b" // orange
       if (event.severity === "high") color = "#ef4444" // red
       if (event.type === "alert") color = "#2563eb"
-      if (event.overlayOnly) color = "#ef4444"
+      if (event.overlayOnly) color = "#22d3ee"
 
       if (event.overlayOnly) {
-        const dotX = scaledX + scaledWidth / 2
-        const dotY = scaledY + scaledHeight / 2
+        const dotX = offsetX + scaledX + scaledWidth / 2
+        const dotY = offsetY + scaledY + scaledHeight / 2
         const dotRadius = 2
         ctx.fillStyle = color
         ctx.beginPath()
@@ -111,7 +127,7 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
       // Draw bounding box
       ctx.strokeStyle = color
       ctx.lineWidth = 2
-      ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight)
+      ctx.strokeRect(offsetX + scaledX, offsetY + scaledY, scaledWidth, scaledHeight)
 
       // Draw label background
       const label = event.identity
@@ -120,21 +136,23 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
       const confidence = Math.round(event.confidence * 100)
 
       ctx.fillStyle = color
-      ctx.fillRect(scaledX, scaledY - 20, Math.max(120, label.length * 8), 20)
+      ctx.fillRect(offsetX + scaledX, offsetY + scaledY - 20, Math.max(120, label.length * 8), 20)
 
       // Draw label text
       ctx.fillStyle = "#ffffff"
       ctx.font = "12px sans-serif"
-      ctx.fillText(`${label} ${confidence}%`, scaledX + 4, scaledY - 5)
+      ctx.fillText(`${label} ${confidence}%`, offsetX + scaledX + 4, offsetY + scaledY - 5)
 
       // Draw identity badge if recognized
       if (event.identity) {
         ctx.fillStyle = "#10b981" // green
         ctx.beginPath()
-        ctx.arc(scaledX + scaledWidth - 10, scaledY + 10, 8, 0, Math.PI * 2)
+        ctx.arc(offsetX + scaledX + scaledWidth - 10, offsetY + scaledY + 10, 8, 0, Math.PI * 2)
         ctx.fill()
       }
     })
+
+    ctx.restore()
   }, [videoElement, events, currentTime, videoWidth, videoHeight])
 
   if (!videoElement) return null

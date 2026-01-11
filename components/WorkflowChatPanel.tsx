@@ -144,6 +144,18 @@ Connect them: video_input -> analyze -> action`
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return
 
+    // Check if API key is configured
+    if (!GEMINI_API_KEY) {
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: "❌ Gemini API key is not configured. Please add NEXT_PUBLIC_GEMINI_API_KEY to your .env.local file and restart the dev server.",
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+      return
+    }
+
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       role: "user",

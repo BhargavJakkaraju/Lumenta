@@ -43,5 +43,5 @@ export interface VideoEvent {
   box?: { x: number; y: number; width: number; height: number }
   identity?: string // If face recognition matched
   overlayOnly?: boolean
-  source?: "analyze" | "summary"
+  source?: "analyze" | "summary" | "periodic"
 }

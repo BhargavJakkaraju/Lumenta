@@ -197,9 +197,15 @@ export class FrameProcessor {
       })
     }
 
+    // Process analyze nodes (async, but don't await - events added to pendingSemanticEvents)
     if (options.analyzeNodes && options.analyzeNodes.length > 0) {
+      console.debug(`[FrameProcessor] Found ${options.analyzeNodes.length} analyze node(s) to process`)
       options.analyzeNodes.forEach((node, index) => {
-        if (!node.prompt?.trim()) return
+        if (!node.prompt?.trim()) {
+          console.debug(`[FrameProcessor] Skipping analyze node ${index} - no prompt`)
+          return
+        }
+        console.debug(`[FrameProcessor] Running analyze node ${index}: "${node.prompt.substring(0, 50)}..."`)
         this.maybeRunSemanticAnalyze(
           node.prompt,
           node.sensitivity,
@@ -207,13 +213,16 @@ export class FrameProcessor {
           timestamp,
           index
         ).catch((error) => {
-          console.debug("Semantic analyze error:", error)
+          console.error("[FrameProcessor] Semantic analyze error:", error)
         })
       })
+    } else {
+      console.debug("[FrameProcessor] No analyze nodes to process")
     }
 
+    // Run periodic summary (async, events added to pendingSemanticEvents)
     this.maybeRunAutoSummary(imageData, timestamp).catch((error) => {
-      console.debug("Auto summary error:", error)
+      console.error("[FrameProcessor] Auto summary error:", error)
     })
 
     // Step 6: Node Graph Rules Check
@@ -294,7 +303,9 @@ export class FrameProcessor {
 
     const processingTime = performance.now() - startTime
 
+    // Add pending semantic events (from analyze nodes and periodic summaries)
     if (this.pendingSemanticEvents.length > 0) {
+      console.debug(`[FrameProcessor] Adding ${this.pendingSemanticEvents.length} pending semantic event(s) to result`)
       events.push(...this.pendingSemanticEvents)
       this.pendingSemanticEvents = []
     }
@@ -362,7 +373,7 @@ export class FrameProcessor {
         const severity: VideoEvent["severity"] =
           confidence > 0.8 ? "high" : confidence > 0.6 ? "medium" : "low"
 
-        this.pendingSemanticEvents.push({
+        const event: VideoEvent = {
           id: `${this.videoId}-${timestamp}-analyze-${index}`,
           timestamp,
           type: "alert",
@@ -370,7 +381,12 @@ export class FrameProcessor {
           description: result.summary || `Analyze match: ${prompt}`,
           confidence,
           source: "analyze",
-        })
+        }
+        
+        this.pendingSemanticEvents.push(event)
+        console.log(`[FrameProcessor] ✅ Analyze match found! Confidence: ${(confidence * 100).toFixed(1)}%`, event)
+      } else {
+        console.debug(`[FrameProcessor] Analyze no match. Confidence: ${(confidence * 100).toFixed(1)}% < threshold: ${(threshold * 100).toFixed(1)}%`)
       }
     } catch (error) {
     } finally {
@@ -382,9 +398,11 @@ export class FrameProcessor {
 
   private async maybeRunAutoSummary(imageData: ImageData, timestamp: number): Promise<void> {
     if (this.summaryState.inFlight) return
-    if (Date.now() - this.summaryState.lastAt < 3000) return
+    // Run every 5 seconds for periodic video analysis
+    if (Date.now() - this.summaryState.lastAt < 5000) return
 
     this.summaryState.inFlight = true
+    console.log(`[FrameProcessor] 🔍 Running periodic Gemini video analysis at ${timestamp.toFixed(1)}s`)
 
     try {
       const dataUrl = this.imageDataToDataUrl(imageData)
@@ -394,6 +412,8 @@ export class FrameProcessor {
         body: JSON.stringify({
           imageData: dataUrl,
           videoId: this.videoId,
+          timestamp,
+          previousSummary: this.summaryState.lastSummary,
         }),
       })
 
@@ -403,36 +423,73 @@ export class FrameProcessor {
 
       const result = (await response.json()) as {
         summary?: string
-        actions?: string[]
+        description?: string
+        events?: Array<{ description: string; type?: string; severity?: string }>
         confidence?: number
       }
 
-      const summaryText = (result.summary || "").trim()
-      const actions = Array.isArray(result.actions) ? result.actions : []
+      // Prioritize events array, then description, then summary
+      const events = Array.isArray(result.events) ? result.events : []
+      const description = result.description || result.summary || ""
 
-      if (!summaryText && actions.length === 0) return
-      if (summaryText && summaryText === this.summaryState.lastSummary) return
-
-      const confidence = typeof result.confidence === "number" ? result.confidence : 0.5
-      const severity: VideoEvent["severity"] =
-        confidence > 0.8 ? "high" : confidence > 0.6 ? "medium" : "low"
-
-      const entries = actions.length > 0 ? actions.slice(0, 3) : [summaryText]
-      entries.forEach((entry, idx) => {
-        this.pendingSemanticEvents.push({
-          id: `${this.videoId}-${timestamp}-summary-${idx}`,
-          timestamp,
-          type: "activity",
-          severity,
-          description: entry,
-          confidence,
-          source: "summary",
+      // Always create at least one event describing what's happening
+      if (events.length > 0) {
+        events.forEach((event, idx) => {
+          const eventType: VideoEvent["type"] = 
+            (event.type === "person" || event.type === "vehicle" || event.type === "alert" || event.type === "object" || event.type === "motion")
+              ? event.type
+              : "motion"
+          const severity: VideoEvent["severity"] =
+            (event.severity === "high" || event.severity === "medium" || event.severity === "low")
+              ? event.severity
+              : "medium"
+          
+          this.pendingSemanticEvents.push({
+            id: `${this.videoId}-${timestamp}-periodic-${idx}`,
+            timestamp,
+            type: eventType,
+            severity,
+            description: event.description,
+            confidence: typeof result.confidence === "number" ? result.confidence : 0.7,
+            source: "periodic",
+          })
         })
-      })
-
-      if (summaryText) {
-        this.summaryState.lastSummary = summaryText
+      } else if (description.trim()) {
+        // Determine type and severity from description
+        const descLower = description.toLowerCase()
+        let eventType: VideoEvent["type"] = "motion"
+        let severity: VideoEvent["severity"] = "medium"
+        
+        if (descLower.includes("person") || descLower.includes("people") || descLower.includes("individual")) {
+          eventType = "person"
+        } else if (descLower.includes("vehicle") || descLower.includes("car") || descLower.includes("truck")) {
+          eventType = "vehicle"
+        } else if (descLower.includes("alert") || descLower.includes("incident") || descLower.includes("suspicious")) {
+          eventType = "alert"
+          severity = "high"
+        }
+        
+        const periodicEvent: VideoEvent = {
+          id: `${this.videoId}-${timestamp}-periodic-0`,
+          timestamp,
+          type: eventType,
+          severity,
+          description: description.trim(),
+          confidence: typeof result.confidence === "number" ? result.confidence : 0.7,
+          source: "periodic",
+        }
+        this.pendingSemanticEvents.push(periodicEvent)
+        console.log(`[FrameProcessor] ✅ Periodic summary event created:`, periodicEvent)
+      } else {
+        console.debug("[FrameProcessor] Periodic summary: No events or description to create")
       }
+
+      // Update last summary for context in next request
+      if (description.trim()) {
+        this.summaryState.lastSummary = description.trim()
+      }
+    } catch (error) {
+      console.debug("Periodic summary error:", error)
     } finally {
       this.summaryState.lastAt = Date.now()
       this.summaryState.inFlight = false

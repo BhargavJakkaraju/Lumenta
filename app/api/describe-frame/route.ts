@@ -33,7 +33,40 @@ export async function POST(request: Request) {
             role: "user",
             parts: [
               {
-                text: `You are monitoring a security camera feed. Summarize what is happening in this frame and list concrete actions.\nRespond ONLY with JSON: {"summary": string, "actions": string[], "confidence": number}\n- actions should be short verb phrases\n- confidence must be 0..1`,
+                text: `You are analyzing a security camera feed frame at timestamp ${body.timestamp || 0} seconds. ${body.previousSummary ? `Previous scene: "${body.previousSummary}"` : "This is the first analysis."}
+
+Your task: Analyze this video frame and create timeline events describing what's happening.
+
+IMPORTANT: Always return at least ONE event, even if the scene is empty or static. Describe what you see.
+
+Focus on:
+- People: Who is visible, what are they doing, where are they going
+- Vehicles: Cars, trucks, motorcycles - entering, leaving, parked
+- Objects: Packages, bags, suspicious items left behind
+- Activities: Walking, running, loitering, interactions
+- Security concerns: Unauthorized access, suspicious behavior, incidents
+- Scene state: Empty hallway, busy area, quiet period
+
+Respond ONLY with valid JSON:
+{
+  "description": "Overall scene description",
+  "events": [
+    {
+      "description": "Specific event description (e.g., 'Person in blue shirt walking left to right', 'Empty hallway', 'Vehicle parked near entrance')",
+      "type": "person" | "vehicle" | "object" | "alert" | "motion",
+      "severity": "low" | "medium" | "high"
+    }
+  ],
+  "confidence": 0.0-1.0
+}
+
+Rules:
+- ALWAYS return at least 1 event in the events array
+- If scene is empty/static: {"description": "Empty hallway", "events": [{"description": "No activity detected", "type": "motion", "severity": "low"}], "confidence": 0.8}
+- If people visible: type="person", severity based on activity level
+- If vehicles visible: type="vehicle"
+- If security concern: type="alert", severity="high"
+- Be specific in descriptions (colors, directions, actions)`,
               },
               {
                 inline_data: {
@@ -48,7 +81,7 @@ export async function POST(request: Request) {
           temperature: 0.2,
           topK: 40,
           topP: 0.9,
-          maxOutputTokens: 256,
+          maxOutputTokens: 1024, // Increased for detailed event descriptions
           response_mime_type: "application/json",
         },
       }),

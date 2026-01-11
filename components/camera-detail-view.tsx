@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import type { Edge } from "@/components/nodeGraph/edges"
 import { FrameProcessor } from "@/lib/frame-processor"
-import { generateVideoHighlights } from "@/lib/twelvelabs-highlights"
 import { providerCoordinator } from "@/lib/providers"
 import { saveProviderConfig } from "@/lib/providers/config"
 import type { CameraFeed, VideoEvent } from "@/types/lumenta"
@@ -189,59 +188,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       // Initialize frame processor
       frameProcessorRef.current = new FrameProcessor(feedId)
       
-      // Generate video highlights using TwelveLabs
-      if (foundFeed.videoUrl) {
-        generateVideoHighlights(foundFeed.videoUrl, feedId)
-          .then((result) => {
-            // Convert chapters to VideoEvent objects with intelligent type/severity detection
-            const highlightEvents: VideoEvent[] = result.chapters.map((chapter, index) => {
-              const description = chapter.title.toLowerCase()
-              
-              // Detect event type from description
-              let type: VideoEvent["type"] = "motion"
-              let severity: VideoEvent["severity"] = "medium"
-              
-              if (description.includes("person") || description.includes("people") || description.includes("human") || description.includes("individual")) {
-                type = "person"
-              } else if (description.includes("car") || description.includes("vehicle") || description.includes("truck") || description.includes("van") || description.includes("motorcycle")) {
-                type = "vehicle"
-              } else if (description.includes("alert") || description.includes("incident") || description.includes("suspicious") || description.includes("unauthorized") || description.includes("breach")) {
-                type = "alert"
-                severity = "high"
-              } else if (description.includes("object") || description.includes("package") || description.includes("bag")) {
-                type = "object"
-              }
-              
-              // Detect severity from keywords
-              if (description.includes("alert") || description.includes("incident") || description.includes("suspicious") || description.includes("unauthorized") || description.includes("breach") || description.includes("danger")) {
-                severity = "high"
-              } else if (description.includes("normal") || description.includes("routine") || description.includes("standard")) {
-                severity = "low"
-              }
-              
-              return {
-                id: `${feedId}-highlight-${index}`,
-                timestamp: chapter.start,
-                type,
-                severity,
-                description: chapter.title, // Keep original title from TwelveLabs
-                confidence: 0.85, // TwelveLabs provides high-quality analysis
-              }
-            })
-            
-            // Set events in the timeline
-            setEvents((prevEvents) => {
-              const eventMap = new Map(prevEvents.map((e) => [e.id, e]))
-              highlightEvents.forEach((event) => {
-                eventMap.set(event.id, event)
-              })
-              return Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
-            })
-          })
-          .catch((error) => {
-            console.error("Failed to generate video highlights:", error)
-          })
-      }
+      // Clear events - only analyze nodes will populate the timeline via Gemini
+      setEvents([])
     }
   }, [feedId])
 
@@ -258,7 +206,12 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     if (!ctx) return
 
     const processFrame = async () => {
-      if (video.paused || !video.readyState) return
+      if (video.paused || !video.readyState || !video.videoWidth || !video.videoHeight) {
+        if (video.paused) console.debug("[CameraDetailView] Video is paused, skipping frame")
+        if (!video.readyState) console.debug("[CameraDetailView] Video not ready, skipping frame")
+        if (!video.videoWidth || !video.videoHeight) console.debug("[CameraDetailView] Video dimensions not available")
+        return
+      }
 
       try {
         // Set canvas size to video dimensions
@@ -280,11 +233,30 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         } catch (error) {
           // CORS error - skip processing
-          console.debug("CORS error, skipping frame processing:", error)
+          console.warn("[CameraDetailView] CORS error, skipping frame processing:", error)
           return
         }
 
-        if (!imageData) return
+        if (!imageData) {
+          console.warn("[CameraDetailView] Could not get image data from canvas")
+          return
+        }
+
+        console.debug(`[CameraDetailView] Processing frame at ${video.currentTime.toFixed(2)}s`)
+
+        // Get analyze nodes from the graph
+        const analyzeNodes = nodeGraphData.nodes
+          .filter((node) => node.type === "analyze")
+          .map((node) => ({
+            prompt: node.config?.prompt,
+            sensitivity: node.config?.sensitivity,
+          }))
+          .filter((node) => node.prompt)
+
+        // Debug: Log analyze nodes
+        if (analyzeNodes.length > 0) {
+          console.debug(`[FrameProcessor] Processing with ${analyzeNodes.length} analyze node(s)`, analyzeNodes)
+        }
 
         // Process frame with all providers
         const result = await processor.processFrame(imageData, video.currentTime, {
@@ -293,26 +265,32 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           enableReasoning: true,
           privacyMode,
           videoId: feedId,
-          analyzeNodes: nodeGraphData.nodes
-            .filter((node) => node.type === "analyze")
-            .map((node) => ({
-              prompt: node.config?.prompt,
-              sensitivity: node.config?.sensitivity,
-            }))
-            .filter((node) => node.prompt),
+          analyzeNodes,
         })
+
+        // Debug: Log events generated
+        if (result.events.length > 0) {
+          console.debug(`[FrameProcessor] Generated ${result.events.length} event(s)`, result.events)
+        }
 
         // Update events state (deduplicate and merge)
         setEvents((prevEvents) => {
           const eventMap = new Map(prevEvents.map((e) => [e.id, e]))
 
-          // Add new events
+          // Add new events from this frame
           result.events.forEach((event) => {
             eventMap.set(event.id, event)
           })
 
+          const updatedEvents = Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
+          
+          // Debug: Log if we have new events
+          if (result.events.length > 0) {
+            console.log(`[CameraDetailView] ✅ Added ${result.events.length} event(s) to timeline. Total events: ${updatedEvents.length}`)
+          }
+
           // Return sorted by timestamp
-          return Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
+          return updatedEvents
         })
 
         const latestAlert = result.events
@@ -340,7 +318,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
         clearInterval(processingIntervalRef.current)
       }
     }
-  }, [feed, videoElement, feedId, privacyMode])
+  }, [feed, videoElement, feedId, privacyMode, nodeGraphData])
 
   // Get video element reference from VideoPlayer
   useEffect(() => {

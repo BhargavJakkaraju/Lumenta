@@ -14,12 +14,12 @@ export interface DetectionResult {
 export class LocalDetectionProvider implements DetectionProvider {
   private readonly targetWidth = 640
   private readonly targetHeight = 360
-  private readonly blockSize = 6
-  private readonly diffThreshold = 18
-  private readonly maxDots = 90
-  private readonly minDotDistance = 10
+  private readonly blockSize = 12
+  private readonly diffThreshold = 24
+  private readonly maxDots = 40
+  private readonly minDotDistance = 16
   private readonly dotSize = 3
-  private readonly sampleStride = 1
+  private readonly sampleStride = 2
 
   isConfigured(): boolean {
     return true // Always available
