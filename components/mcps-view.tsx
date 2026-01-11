@@ -151,8 +151,8 @@ export function MCPsView() {
   // Check if configuration is valid
   const isValidConfig = (integration: Integration, values: Record<string, any>): boolean => {
     // Extract template ID from integration ID (format: "templateId-uuid")
-    const templateId = integration.id.split("-")[0]
-    const template = INTEGRATION_TEMPLATES.find((t) => t.id === templateId)
+    // Template IDs can have hyphens (e.g., "phone-calls", "email-service")
+    const template = INTEGRATION_TEMPLATES.find((t) => integration.id.startsWith(t.id + "-"))
     if (!template) return false
 
     // If no config fields, always valid (credentials come from env vars)
@@ -173,7 +173,7 @@ export function MCPsView() {
   const handleToggleStatus = (integration: Integration, checked: boolean) => {
     if (checked) {
       // Activating - check if config is valid first
-      const template = INTEGRATION_TEMPLATES.find((t) => t.id === integration.id.split("-")[0])
+      const template = INTEGRATION_TEMPLATES.find((t) => integration.id.startsWith(t.id + "-"))
       if (!template) return
 
       const isValid = isValidConfig(integration, integration.config)
@@ -208,8 +208,9 @@ export function MCPsView() {
   // Get integration template
   const getTemplate = (integration: Integration): IntegrationTemplate | undefined => {
     // Extract template ID from integration ID (format: "templateId-uuid")
-    const templateId = integration.id.split("-")[0]
-    return INTEGRATION_TEMPLATES.find((t) => t.id === templateId)
+    // Template IDs can have hyphens (e.g., "phone-calls", "email-service")
+    // So we match by finding the template whose ID prefix matches the integration ID
+    return INTEGRATION_TEMPLATES.find((t) => integration.id.startsWith(t.id + "-"))
   }
 
   // Get status badge
@@ -299,21 +300,16 @@ export function MCPsView() {
                     {/* Right side: Toggle Switch, Status Badge, and Actions */}
                     <div className="flex items-center gap-4">
                       {/* Toggle Switch */}
-                      <div className="flex flex-col items-center gap-1">
-                        <Switch
-                          checked={integration.status === "active"}
-                          onCheckedChange={(checked) => handleToggleStatus(integration, checked)}
-                          disabled={integration.status === "error"}
-                          title={
-                            integration.status === "active"
-                              ? "Integration is active and can be used by workflows and the orchestrator"
-                              : "Turn on to enable this integration for use"
-                          }
-                        />
-                        <span className="text-xs text-zinc-500">
-                          {integration.status === "active" ? "Active" : "Standby"}
-                        </span>
-                      </div>
+                      <Switch
+                        checked={integration.status === "active"}
+                        onCheckedChange={(checked) => handleToggleStatus(integration, checked)}
+                        disabled={integration.status === "error"}
+                        title={
+                          integration.status === "active"
+                            ? "Integration is active and can be used by workflows and the orchestrator"
+                            : "Turn on to enable this integration for use"
+                        }
+                      />
 
                       {/* Action Buttons */}
                       <div className="flex items-center gap-2">

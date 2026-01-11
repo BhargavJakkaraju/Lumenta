@@ -26,14 +26,6 @@ export const INTEGRATION_TEMPLATES: IntegrationTemplate[] = [
         required: true,
         helpText: "Your email address to receive notifications",
       },
-      {
-        key: "fromEmail",
-        label: "From Email (Optional)",
-        type: "email",
-        placeholder: "notifications@yourdomain.com",
-        required: false,
-        helpText: "Optional: Custom 'from' email. Defaults to Resend's default if not provided.",
-      },
     ],
   },
   {
@@ -251,19 +243,11 @@ export const INTEGRATION_TEMPLATES: IntegrationTemplate[] = [
     configFields: [
       {
         key: "phoneNumber",
-        label: "Your Phone Number (Optional)",
+        label: "Your Phone Number",
         type: "text",
         placeholder: "+1234567890",
-        required: false,
-        helpText: "Your phone number to receive calls (optional, can be provided when calling instead)",
-      },
-      {
-        key: "assistantId",
-        label: "Vapi Assistant ID (Required)",
-        type: "text",
-        placeholder: "assistant-uuid-here",
         required: true,
-        helpText: "Required: Vapi Assistant ID (UUID). Get from Vapi Dashboard → Assistants → Copy the ID. Or set VAPI_ASSISTANT_ID in environment variables.",
+        helpText: "Your phone number to receive phone calls (include country code). API credentials managed via environment variables.",
       },
     ],
   },
