@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,15 @@ import { FileText, Search, Filter } from "lucide-react"
 import type { Incident } from "@/types/lumenta"
 
 interface LogsViewProps {
-  incidents: Incident[]
+  incidents?: Incident[]
 }
 
 export function LogsView({ incidents }: LogsViewProps) {
+  const [serverIncidents, setServerIncidents] = useState<Incident[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isClearing, setIsClearing] = useState(false)
+  const [hasServerData, setHasServerData] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -31,8 +36,70 @@ export function LogsView({ incidents }: LogsViewProps) {
     return "motion"
   }
 
+  useEffect(() => {
+    let isActive = true
+
+    const loadDetections = async () => {
+      try {
+        const response = await fetch("/api/detections?limit=500")
+        if (!response.ok) {
+          throw new Error("Failed to load detections.")
+        }
+        const data = await response.json()
+        const items = Array.isArray(data.items) ? data.items : []
+        const parsed = items.map((item: Incident & { timestamp: string }) => ({
+          ...item,
+          timestamp: new Date(item.timestamp),
+        }))
+        if (isActive) {
+          setServerIncidents(parsed)
+          setHasServerData(true)
+          setLoadError(null)
+        }
+      } catch (error: any) {
+        if (isActive) {
+          setLoadError(error.message || "Failed to load detections.")
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadDetections()
+    const interval = window.setInterval(loadDetections, 5000)
+
+    return () => {
+      isActive = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const handleClearLogs = async () => {
+    if (!confirm("Clear all detection logs?")) return
+    setIsClearing(true)
+    try {
+      const response = await fetch("/api/detections", { method: "DELETE" })
+      if (!response.ok) {
+        throw new Error("Failed to clear detection logs.")
+      }
+      setServerIncidents([])
+      setHasServerData(true)
+      setLoadError(null)
+    } catch (error: any) {
+      setLoadError(error.message || "Failed to clear detection logs.")
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
+  const effectiveIncidents = useMemo(() => {
+    return hasServerData ? serverIncidents : incidents ?? []
+  }, [serverIncidents, incidents, hasServerData])
+
   const filteredIncidents = useMemo(() => {
-    return incidents.filter((incident) => {
+    return effectiveIncidents.filter((incident) => {
       const incidentType = getIncidentType(incident)
       const matchesSearch =
         searchQuery === "" ||
@@ -45,7 +112,7 @@ export function LogsView({ incidents }: LogsViewProps) {
 
       return matchesSearch && matchesType && matchesStatus
     })
-  }, [incidents, searchQuery, filterType, filterStatus])
+  }, [effectiveIncidents, searchQuery, filterType, filterStatus])
 
   const getTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
@@ -71,8 +138,8 @@ export function LogsView({ incidents }: LogsViewProps) {
   }
 
   const uniqueTypes = useMemo(() => {
-    return Array.from(new Set(incidents.map((i) => getIncidentType(i))))
-  }, [incidents])
+    return Array.from(new Set(effectiveIncidents.map((i) => getIncidentType(i))))
+  }, [effectiveIncidents])
 
   const summaryStats = useMemo(() => {
     const now = Date.now()
@@ -111,6 +178,19 @@ export function LogsView({ incidents }: LogsViewProps) {
           <p className="text-zinc-400 mt-1">
             View all past detections and incidents ({filteredIncidents.length} total)
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleClearLogs}
+            disabled={isClearing}
+            className="text-xs text-zinc-300 hover:text-white border border-zinc-700 rounded-full px-3 py-1 disabled:opacity-50"
+          >
+            {isClearing ? "Clearing…" : "Clear logs"}
+          </button>
+          <span className="text-xs text-zinc-500">
+            {isLoading ? "Loading…" : loadError ? "Offline" : "Live"}
+          </span>
         </div>
       </div>
 
@@ -212,7 +292,7 @@ export function LogsView({ incidents }: LogsViewProps) {
             <FileText className="size-12 text-zinc-600 mb-4" />
             <p className="text-zinc-400">No detections found</p>
             <p className="text-zinc-500 text-sm mt-1">
-              {incidents.length === 0
+              {effectiveIncidents.length === 0
                 ? "No detections have been recorded yet"
                 : "Try adjusting your filters"}
             </p>

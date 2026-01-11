@@ -65,6 +65,13 @@ export function ConsoleView() {
 
   const handleAddIncident = (incident: Incident) => {
     setIncidents((prev) => [incident, ...prev])
+    fetch("/api/detections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(incident),
+    }).catch((error) => {
+      console.error("Failed to persist incident:", error)
+    })
   }
 
   const handleUpdateFeedMetrics = (feedId: string, metrics: Partial<CameraFeed>) => {

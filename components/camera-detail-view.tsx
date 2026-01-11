@@ -15,7 +15,7 @@ import { FrameProcessor } from "@/lib/frame-processor"
 import { LocalDetectionProvider } from "@/lib/providers/detection-provider"
 import { providerCoordinator } from "@/lib/providers"
 import { saveProviderConfig } from "@/lib/providers/config"
-import type { CameraFeed, VideoEvent } from "@/types/lumenta"
+import type { CameraFeed, Incident, VideoEvent, DetectionLog } from "@/types/lumenta"
 
 interface CameraDetailViewProps {
   feedId: string
@@ -121,6 +121,13 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [hasAnalyzed, setHasAnalyzed] = useState(false)
   const { toast } = useToast()
   const lastAlertRef = useRef<string | null>(null)
+  const hasPersistedSummaryRef = useRef(false)
+  const sessionIdRef = useRef<string>(crypto.randomUUID())
+  const sessionStartTimeRef = useRef<Date>(new Date())
+  const sessionIncidentsRef = useRef<Incident[]>([])
+  const latestEventsRef = useRef<VideoEvent[]>([])
+  const latestFeedRef = useRef<CameraFeed | null>(null)
+  const latestDurationRef = useRef(0)
   const [nodeGraphData, setNodeGraphData] = useState<{
     nodes: Array<{ id: string; type: string; title: string; config?: any }>
     edges: Array<{ id: string; fromNodeId: string; toNodeId: string }>
@@ -137,6 +144,220 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const motionPrevFrameRef = useRef<ImageData | null>(null)
   const lastForcedDetectionRef = useRef(0)
   const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
+
+  useEffect(() => {
+    latestEventsRef.current = events
+  }, [events])
+
+  useEffect(() => {
+    latestFeedRef.current = feed
+  }, [feed])
+
+  useEffect(() => {
+    latestDurationRef.current = duration
+  }, [duration])
+
+  const persistSessionSummary = useCallback(async () => {
+    // Early return if already persisted (synchronous check first)
+    if (hasPersistedSummaryRef.current) {
+      return
+    }
+
+    // Set flag immediately to prevent multiple calls
+    hasPersistedSummaryRef.current = true
+
+    const sessionKey = `lumenta:summary:${sessionIdRef.current}`
+    if (typeof window !== "undefined") {
+      const existing = (window as any).__lumentaSessionSummaries as Set<string> | undefined
+      if (existing?.has(sessionKey)) {
+        hasPersistedSummaryRef.current = false // Reset if window check fails
+        return
+      }
+      if (!existing) {
+        ;(window as any).__lumentaSessionSummaries = new Set<string>()
+      }
+      ;(window as any).__lumentaSessionSummaries.add(sessionKey)
+    }
+
+    const feedData = latestFeedRef.current
+    if (!feedData) return
+
+    const sessionEvents = latestEventsRef.current.filter(
+      (event) => !event.overlayOnly && event.type !== "activity"
+    )
+
+    // Get incidents for this feed from the database
+    let sessionIncidents: Incident[] = []
+    try {
+      const incidentsResponse = await fetch(`/api/detections?feedId=${feedData.id}&limit=1000`)
+      if (incidentsResponse.ok) {
+        const incidentsData = await incidentsResponse.json()
+        const sessionStart = sessionStartTimeRef.current
+        const sessionEnd = new Date()
+        // Filter incidents that occurred during this session
+        sessionIncidents = (incidentsData.items || []).filter((incident: Incident) => {
+          const incidentTime = new Date(incident.timestamp)
+          return incidentTime >= sessionStart && incidentTime <= sessionEnd
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch incidents for session:", error)
+      // Use stored incidents as fallback
+      sessionIncidents = sessionIncidentsRef.current
+    }
+
+    // Calculate detection summary
+    const objectDetections = {
+      person: 0,
+      vehicle: 0,
+      object: 0,
+      alert: 0,
+      motion: 0,
+    }
+
+    let totalConfidence = 0
+    let maxConfidence = 0
+    let alertCount = 0
+
+    sessionEvents.forEach((event) => {
+      if (event.type === "person") objectDetections.person++
+      else if (event.type === "vehicle") objectDetections.vehicle++
+      else if (event.type === "object") objectDetections.object++
+      else if (event.type === "alert") {
+        objectDetections.alert++
+        alertCount++
+      } else if (event.type === "motion") objectDetections.motion++
+
+      totalConfidence += event.confidence
+      maxConfidence = Math.max(maxConfidence, event.confidence)
+    })
+
+    const averageConfidence = sessionEvents.length > 0 ? totalConfidence / sessionEvents.length : 0
+    const sessionEndTime = new Date()
+    const duration = (sessionEndTime.getTime() - sessionStartTimeRef.current.getTime()) / 1000
+
+    // Create detection log
+    const detectionLog: DetectionLog = {
+      id: crypto.randomUUID(),
+      feedId: feedData.id,
+      feedName: feedData.name,
+      sessionId: sessionIdRef.current,
+      sessionStartTime: sessionStartTimeRef.current,
+      sessionEndTime: sessionEndTime,
+      duration,
+      summary: {
+        totalDetections: sessionEvents.length,
+        objectDetections,
+        incidents: sessionIncidents.length,
+        alerts: alertCount,
+        averageConfidence,
+        maxConfidence,
+      },
+      events: sessionEvents.map((event) => ({
+        id: event.id,
+        timestamp: event.timestamp,
+        type: event.type,
+        severity: event.severity,
+        description: event.description,
+        confidence: event.confidence,
+      })),
+      incidents: sessionIncidents.map((incident) => ({
+        id: incident.id,
+        timestamp: incident.timestamp,
+        type: incident.type,
+        severity: incident.severity,
+        description: incident.description,
+        status: incident.status,
+      })),
+      createdAt: new Date(),
+    }
+
+    // Save detection log (API will check for duplicates)
+    try {
+      const logResponse = await fetch("/api/detection-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(detectionLog),
+      })
+
+      if (!logResponse.ok) {
+        const errorData = await logResponse.json().catch(() => ({}))
+        // If it's a conflict (409), the log already exists - that's okay
+        if (logResponse.status === 409) {
+          console.log(`[DetectionLog] ⚠️ Log already exists for session ${sessionIdRef.current}, skipping`)
+          return
+        }
+        throw new Error(errorData.error || "Failed to save detection log")
+      }
+
+      console.log(`[DetectionLog] ✅ Saved session log for ${feedData.name}:`, {
+        sessionId: sessionIdRef.current,
+        detections: sessionEvents.length,
+        incidents: sessionIncidents.length,
+        duration: `${Math.floor(duration)}s`,
+      })
+    } catch (error) {
+      console.error("Failed to persist detection log:", error)
+      // Reset flag on error so it can be retried
+      hasPersistedSummaryRef.current = false
+    }
+
+    // Also create a summary incident for backward compatibility
+    if (sessionEvents.length > 0) {
+      const formatDuration = (totalSeconds: number) => {
+        const mins = Math.floor(totalSeconds / 60)
+        const secs = Math.floor(totalSeconds % 60)
+        return `${mins}:${secs.toString().padStart(2, "0")}`
+      }
+
+      const windowLabel = formatDuration(duration)
+      const typeSummary = Object.entries(objectDetections)
+        .filter(([_, count]) => count > 0)
+        .map(([type, count]) => `${type}: ${count}`)
+        .join(", ")
+
+      let severity: Incident["severity"] = "low"
+      if (alertCount > 0 || sessionEvents.length >= 12) {
+        severity = "high"
+      } else if (sessionEvents.length >= 5) {
+        severity = "medium"
+      }
+
+      const summary: Incident = {
+        id: crypto.randomUUID(),
+        feedId: feedData.id,
+        feedName: feedData.name,
+        type: alertCount > 0 ? "alert" : "activity",
+        severity,
+        timestamp: new Date(),
+        confidence: maxConfidence,
+        description: `${feedData.name}: ${sessionEvents.length} detections over ${windowLabel}. Alerts: ${alertCount}. Incidents: ${sessionIncidents.length}. ${typeSummary || "No dominant types."}`,
+        status: "open",
+      }
+
+      await fetch("/api/detections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(summary),
+      }).catch((error) => {
+        console.error("Failed to persist detection summary:", error)
+      })
+    }
+  }, [])
+
+  // Use a ref to track if cleanup has been called to prevent multiple calls
+  const cleanupCalledRef = useRef(false)
+
+  useEffect(() => {
+    cleanupCalledRef.current = false
+    return () => {
+      // Only call cleanup once per mount
+      if (!cleanupCalledRef.current && !hasPersistedSummaryRef.current) {
+        cleanupCalledRef.current = true
+        persistSessionSummary().catch(() => null)
+      }
+    }
+  }, [persistSessionSummary, feedId]) // Add feedId to dependencies to reset on feed change
   const initialNodesCreatedRef = useRef(false)
   const lastTestActionTriggerRef = useRef(0)
 
@@ -207,6 +428,12 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       // Clear events - will be populated by video analysis
       setEvents([])
       setHasAnalyzed(false)
+      
+      // Reset session tracking
+      sessionIdRef.current = crypto.randomUUID()
+      sessionStartTimeRef.current = new Date()
+      sessionIncidentsRef.current = []
+      hasPersistedSummaryRef.current = false
     }
   }, [feedId])
 

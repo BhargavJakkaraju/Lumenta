@@ -1,38 +1,80 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart3, TrendingUp, Activity, Clock } from "lucide-react"
 
 export function AnalyticsView() {
-  // Mock analytics data
+  const [summary, setSummary] = useState<{
+    total: number
+    open: number
+    resolved: number
+    lastHour: number
+    lastDay: number
+    activeFeeds: number
+    topTypes: Array<{ type: string; count: number }>
+  } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadSummary = async () => {
+      try {
+        const response = await fetch("/api/analytics/summary")
+        if (!response.ok) {
+          throw new Error("Failed to load analytics.")
+        }
+        const data = await response.json()
+        if (isActive) {
+          setSummary(data)
+          setLoadError(null)
+        }
+      } catch (error: any) {
+        if (isActive) {
+          setLoadError(error.message || "Failed to load analytics.")
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadSummary()
+    const interval = window.setInterval(loadSummary, 10000)
+
+    return () => {
+      isActive = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
   const stats = [
     {
       label: "Total Detections",
-      value: "1,234",
-      change: "+12%",
+      value: summary ? summary.total.toLocaleString() : "0",
+      change: "All time",
       icon: Activity,
-      trend: "up" as const,
     },
     {
       label: "Active Feeds",
-      value: "8",
-      change: "+2",
+      value: summary ? summary.activeFeeds.toLocaleString() : "0",
+      change: "Reporting now",
       icon: BarChart3,
-      trend: "up" as const,
     },
     {
-      label: "Avg Response Time",
-      value: "1.2s",
-      change: "-0.3s",
+      label: "Open Incidents",
+      value: summary ? summary.open.toLocaleString() : "0",
+      change: "Needs review",
       icon: Clock,
-      trend: "down" as const,
     },
     {
-      label: "Detection Rate",
-      value: "94.5%",
-      change: "+2.1%",
+      label: "Last Hour",
+      value: summary ? summary.lastHour.toLocaleString() : "0",
+      change: "Recent activity",
       icon: TrendingUp,
-      trend: "up" as const,
     },
   ]
 
@@ -40,7 +82,12 @@ export function AnalyticsView() {
     <div className="p-6 space-y-6 w-full max-w-none">
       <div>
         <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-zinc-400 mt-1">Monitor your detection system performance</p>
+        <div className="flex items-center gap-2 text-sm text-zinc-400 mt-1">
+          <span>Monitor your detection system performance</span>
+          <span className="text-xs text-zinc-500">
+            {isLoading ? "Loading…" : loadError ? "Offline" : "Live"}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -54,13 +101,7 @@ export function AnalyticsView() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{stat.value}</div>
-                <p
-                  className={`text-xs mt-1 ${
-                    stat.trend === "up" ? "text-green-400" : "text-blue-400"
-                  }`}
-                >
-                  {stat.change} from last week
-                </p>
+                <p className="text-xs mt-1 text-zinc-400">{stat.change}</p>
               </CardContent>
             </Card>
           )
@@ -73,12 +114,18 @@ export function AnalyticsView() {
             <CardTitle>Detection Trends</CardTitle>
             <CardDescription>Last 7 days</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-center justify-center text-zinc-500">
-              <div className="text-center">
-                <BarChart3 className="size-12 mx-auto mb-2 opacity-50" />
-                <p>Chart visualization coming soon</p>
-              </div>
+          <CardContent className="space-y-3 text-sm text-zinc-400">
+            <div className="flex items-center justify-between">
+              <span>Last 24 hours</span>
+              <span className="text-white">{summary?.lastDay ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Last hour</span>
+              <span className="text-white">{summary?.lastHour ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Resolved</span>
+              <span className="text-white">{summary?.resolved ?? 0}</span>
             </div>
           </CardContent>
         </Card>
@@ -90,25 +137,28 @@ export function AnalyticsView() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                { type: "Person", count: 456, percentage: 37 },
-                { type: "Vehicle", count: 321, percentage: 26 },
-                { type: "Motion", count: 287, percentage: 23 },
-                { type: "Other", count: 170, percentage: 14 },
-              ].map((item) => (
-                <div key={item.type} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-zinc-300">{item.type}</span>
-                    <span className="text-zinc-400">{item.count}</span>
+              {(summary?.topTypes ?? []).map((item) => {
+                const percentage = summary && summary.total > 0
+                  ? Math.round((item.count / summary.total) * 100)
+                  : 0
+                return (
+                  <div key={item.type} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-300 capitalize">{item.type}</span>
+                      <span className="text-zinc-400">{item.count}</span>
+                    </div>
+                    <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-600"
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
+              {(summary?.topTypes ?? []).length === 0 && (
+                <p className="text-zinc-500">No detections yet</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -116,4 +166,3 @@ export function AnalyticsView() {
     </div>
   )
 }
-

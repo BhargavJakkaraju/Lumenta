@@ -92,6 +92,7 @@ export function CameraTile({
               id: crypto.randomUUID(),
               feedId: feed.id,
               feedName: feed.name,
+              type: "motion",
               severity: activity > 50 ? "high" : activity > 40 ? "medium" : "low",
               timestamp: new Date(),
               confidence: Math.floor(activity + Math.random() * 20),
