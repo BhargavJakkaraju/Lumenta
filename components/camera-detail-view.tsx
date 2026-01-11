@@ -180,6 +180,9 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   )
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      ;(window as any).__lumentaPauseProcessing = false
+    }
     // Find the feed by ID
     const foundFeed = STOCK_FEEDS.find((f) => f.id === feedId)
     if (foundFeed) {
@@ -254,6 +257,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           enableReasoning: true,
           privacyMode,
           videoId: feedId,
+          enableObjectDetection: showMotionOverlay,
+          enableMotionOverlay: showMotionOverlay,
           analyzeNodes,
         })
 
@@ -289,6 +294,10 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     }
 
     const processLoop = () => {
+      if ((window as any).__lumentaPauseProcessing) {
+        processingAnimationRef.current = null
+        return
+      }
       processFrame().catch(() => null)
       processingAnimationRef.current = window.requestAnimationFrame(processLoop)
     }
@@ -427,6 +436,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             <ObjectDetections
               events={events}
               currentTime={currentTime}
+              enabled={showMotionOverlay}
             />
           </div>
         </div>

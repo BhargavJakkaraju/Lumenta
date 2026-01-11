@@ -27,6 +27,8 @@ export interface FrameProcessorOptions {
   knownIdentities?: Map<string, Float32Array>
   videoId?: string
   analyzeNodes?: Array<{ prompt: string; sensitivity?: "low" | "medium" | "high" }>
+  enableObjectDetection?: boolean
+  enableMotionOverlay?: boolean
 }
 
 export class FrameProcessor {
@@ -41,6 +43,8 @@ export class FrameProcessor {
     inFlight: false,
     lastSummary: "",
   }
+  private lastDetectionAt = 0
+  private lastDetections = { boxes: [], labels: [], confidences: [] }
   private allowedLabelsByVideoId: Record<string, Set<string>> = {
     "camera-1": new Set(["person"]),
     "camera-2": new Set(["person"]),
@@ -70,14 +74,26 @@ export class FrameProcessor {
 
     // Step 2: Object Detection (YOLOv8 or local)
     const detectionProvider = providerCoordinator.getDetectionProvider()
-    const detections = detectionProvider.detectWithPrevious
-      ? await detectionProvider.detectWithPrevious(preprocessed, this.lastProcessedFrame)
-      : await detectionProvider.detect(preprocessed)
+    const shouldDetect = options.enableObjectDetection !== false
+    const detectionIntervalMs = 800
+    const detectionDue = Date.now() - this.lastDetectionAt >= detectionIntervalMs
+    const detections = shouldDetect
+      ? detectionDue
+        ? detectionProvider.detectWithPrevious
+          ? await detectionProvider.detectWithPrevious(preprocessed, this.lastProcessedFrame)
+          : await detectionProvider.detect(preprocessed)
+        : this.lastDetections
+      : { boxes: [], labels: [], confidences: [] }
 
-    const motionOverlayDetections = await this.motionOverlayProvider.detectWithPrevious(
-      preprocessed,
-      this.lastProcessedFrame
-    )
+    if (shouldDetect && detectionDue) {
+      this.lastDetectionAt = Date.now()
+      this.lastDetections = detections
+    }
+
+    const shouldMotion = options.enableMotionOverlay !== false
+    const motionOverlayDetections = shouldMotion
+      ? await this.motionOverlayProvider.detectWithPrevious(preprocessed, this.lastProcessedFrame)
+      : { boxes: [], labels: [], confidences: [] }
 
     // Step 3: Face Recognition (if enabled and person detected)
     let identities: Array<{ identity: string; similarity: number; box: { x: number; y: number; width: number; height: number } }> = []

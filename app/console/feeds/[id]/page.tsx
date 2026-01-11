@@ -16,7 +16,10 @@ export default function CameraDetailPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => router.push("/console")}
+          onClick={() => {
+            ;(window as any).__lumentaPauseProcessing = true
+            router.push("/console")
+          }}
           className="text-zinc-400 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -29,4 +32,3 @@ export default function CameraDetailPage() {
     </div>
   )
 }
-

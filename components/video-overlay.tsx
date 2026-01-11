@@ -85,7 +85,7 @@ export function VideoOverlay({
 
     const linkDistance = 64
     if (overlayDots.length > 1) {
-      ctx.strokeStyle = "rgba(34, 211, 238, 0.4)"
+      ctx.strokeStyle = "rgba(34, 211, 238, 0.28)"
       ctx.lineWidth = 1
       for (let i = 0; i < overlayDots.length; i++) {
         const a = overlayDots[i]
@@ -126,7 +126,7 @@ export function VideoOverlay({
         const dotX = offsetX + scaledX + scaledWidth / 2
         const dotY = offsetY + scaledY + scaledHeight / 2
         const dotRadius = 2
-        ctx.fillStyle = color
+        ctx.fillStyle = "rgba(34, 211, 238, 0.65)"
         ctx.beginPath()
         ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2)
         ctx.fill()

@@ -9,9 +9,10 @@ import type { VideoEvent } from "@/types/lumenta"
 interface ObjectDetectionsProps {
   events: VideoEvent[]
   currentTime: number
+  enabled?: boolean
 }
 
-export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps) {
+export function ObjectDetections({ events, currentTime, enabled = true }: ObjectDetectionsProps) {
   const [detections, setDetections] = useState<VideoEvent[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const latestEventsRef = useRef<VideoEvent[]>(events)
@@ -21,6 +22,7 @@ export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps)
   }, [events])
 
   useEffect(() => {
+    if (!enabled) return
     const interval = setInterval(() => {
       const rawDetections = latestEventsRef.current
         .filter((event) => !event.overlayOnly && event.type !== "alert" && event.type !== "activity")
@@ -48,7 +50,7 @@ export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps)
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [enabled])
 
   const getEventIcon = (type: VideoEvent["type"]) => {
     switch (type) {
@@ -76,7 +78,12 @@ export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps)
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto !px-2 !py-1.5 min-h-0">
-        {detections.length === 0 ? (
+        {!enabled ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <Activity className="size-12 text-zinc-600 mb-4" />
+            <p className="text-zinc-400">Object detection disabled</p>
+          </div>
+        ) : detections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Activity className="size-12 text-zinc-600 mb-4" />
             <p className="text-zinc-400">No detections yet</p>
