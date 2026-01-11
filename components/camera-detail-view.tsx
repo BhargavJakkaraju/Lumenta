@@ -1,4 +1,4 @@
-ou do"use client"
+"use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
