@@ -14,9 +14,17 @@ interface VideoOverlayProps {
   currentTime: number
   videoWidth: number
   videoHeight: number
+  showMotionOverlay?: boolean
 }
 
-export function VideoOverlay({ videoElement, events, currentTime, videoWidth, videoHeight }: VideoOverlayProps) {
+export function VideoOverlay({
+  videoElement,
+  events,
+  currentTime,
+  videoWidth,
+  videoHeight,
+  showMotionOverlay = true,
+}: VideoOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -35,9 +43,10 @@ export function VideoOverlay({ videoElement, events, currentTime, videoWidth, vi
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Get events for current time (±0.5 seconds)
-    const activeEvents = events.filter(
-      (event) => Math.abs(event.timestamp - currentTime) < 0.5 && event.box
-    )
+    const activeEvents = events.filter((event) => {
+      if (!showMotionOverlay && event.overlayOnly) return false
+      return Math.abs(event.timestamp - currentTime) < 0.5 && event.box
+    })
 
     // Calculate displayed video area inside the canvas (object-contain)
     const videoAspect = videoWidth / videoHeight

@@ -14,18 +14,41 @@ interface ObjectDetectionsProps {
 export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps) {
   const [detections, setDetections] = useState<VideoEvent[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
+  const latestEventsRef = useRef<VideoEvent[]>(events)
 
   useEffect(() => {
-    const nextDetections = events
-      .filter((event) => !event.overlayOnly && event.type !== "alert" && event.type !== "activity")
-      .sort((a, b) => b.timestamp - a.timestamp)
-
-    const hasNew = nextDetections.some((event) => !seenIdsRef.current.has(event.id))
-    if (!hasNew) return
-
-    nextDetections.forEach((event) => seenIdsRef.current.add(event.id))
-    setDetections(nextDetections.slice(0, 20))
+    latestEventsRef.current = events
   }, [events])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const rawDetections = latestEventsRef.current
+        .filter((event) => !event.overlayOnly && event.type !== "alert" && event.type !== "activity")
+        .sort((a, b) => b.timestamp - a.timestamp)
+
+      const dedupedMap = new Map<string, VideoEvent>()
+      rawDetections.forEach((event) => {
+        const timeBucket = Math.floor(event.timestamp)
+        const key = `${event.type}-${timeBucket}`
+        const existing = dedupedMap.get(key)
+        if (!existing || event.confidence > existing.confidence) {
+          dedupedMap.set(key, event)
+        }
+      })
+
+      const nextDetections = Array.from(dedupedMap.values()).sort(
+        (a, b) => b.timestamp - a.timestamp
+      )
+
+      const hasNew = nextDetections.some((event) => !seenIdsRef.current.has(event.id))
+      if (!hasNew) return
+
+      nextDetections.forEach((event) => seenIdsRef.current.add(event.id))
+      setDetections(nextDetections.slice(0, 20))
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const getEventIcon = (type: VideoEvent["type"]) => {
     switch (type) {
@@ -69,25 +92,25 @@ export function ObjectDetections({ events, currentTime }: ObjectDetectionsProps)
                     isActive ? "ring-2 ring-blue-500" : ""
                   }`}
                 >
-                  <CardContent className="!px-2 !py-1.5">
+                  <CardContent className="!px-2 !py-1">
                     <div className="flex items-center gap-2">
                       <div className="p-0.5 rounded flex-shrink-0 bg-zinc-700 text-white flex items-center justify-center">
                         {getEventIcon(event.type)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <Badge className="bg-zinc-700 text-xs py-0 px-1.5 h-4" variant="default">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-zinc-700 text-[11px] py-0 px-1.5 h-4" variant="default">
                             {event.type}
                           </Badge>
-                          <span className="text-xs text-zinc-400 font-mono leading-none">
+                          <span className="text-[11px] text-zinc-400 font-mono leading-none">
                             {formatTime(event.timestamp)}
                           </span>
+                          <span className="text-[11px] text-zinc-500 leading-none">
+                            {(event.confidence * 100).toFixed(0)}%
+                          </span>
                         </div>
-                        <p className="text-xs text-white font-medium leading-tight mb-0.5">
+                        <p className="text-xs text-white font-medium leading-tight truncate">
                           {event.description}
-                        </p>
-                        <p className="text-xs text-zinc-500 leading-none">
-                          Confidence: {(event.confidence * 100).toFixed(0)}%
                         </p>
                       </div>
                     </div>

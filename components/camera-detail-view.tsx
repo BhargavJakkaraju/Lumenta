@@ -3,11 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
 import { EventTimeline } from "@/components/event-timeline"
-import { analyzeVideoWithGemini, convertToVideoEvents } from "@/lib/video-analyzer"
 import { VideoOverlay } from "@/components/video-overlay"
 import { NodeCanvas, type Node, type NodeCanvasHandle } from "@/components/nodeGraph/NodeCanvas"
 import { WorkflowChatPanel } from "@/components/WorkflowChatPanel"
-import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { ObjectDetections } from "@/components/object-detections"
 import type { Edge } from "@/components/nodeGraph/edges"
@@ -24,7 +22,7 @@ interface CameraDetailViewProps {
 export const STOCK_FEEDS: CameraFeed[] = [
   {
     id: "camera-1",
-    name: "Jewelry Store",
+    name: "Main Entrance",
     videoUrl: "/videos/camera-1.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 85,
@@ -33,7 +31,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-2",
-    name: "Bedroom",
+    name: "Parking Lot",
     videoUrl: "/videos/camera-2.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 45,
@@ -42,7 +40,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-3",
-    name: "Front Porch",
+    name: "Warehouse Floor",
     videoUrl: "/videos/camera-3.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 92,
@@ -51,7 +49,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-4",
-    name: "Warehouse 1",
+    name: "Loading Dock",
     videoUrl: "/videos/camera-4.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 67,
@@ -60,7 +58,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-5",
-    name: "Living Room",
+    name: "Security Office",
     videoUrl: "/videos/camera-5.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 23,
@@ -69,7 +67,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-6",
-    name: "Backyard Patio",
+    name: "Reception Area",
     videoUrl: "/videos/camera-6.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 78,
@@ -78,7 +76,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-7",
-    name: "Warehouse 2",
+    name: "Front Lobby",
     videoUrl: "/videos/camera-7.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 56,
@@ -87,7 +85,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-8",
-    name: "City Intersection",
+    name: "Back Entrance",
     videoUrl: "/videos/camera-8.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 72,
@@ -96,7 +94,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-9",
-    name: "Pool",
+    name: "Elevator Bay",
     videoUrl: "/videos/camera-9.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 34,
@@ -113,14 +111,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
   const [privacyMode] = useState(true)
-  const [yoloEnabled, setYoloEnabled] = useState(true)
-  const [yoloModelPath, setYoloModelPath] = useState("/models/yolov8n.onnx")
-  const [yoloInputSize, setYoloInputSize] = useState(640)
-  const [yoloConfidence, setYoloConfidence] = useState(0.5)
-  const [detectionStatus, setDetectionStatus] = useState("local")
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [hasAnalyzed, setHasAnalyzed] = useState(false)
-  const nodesCreatedRef = useRef<Set<string>>(new Set())
+  const [showMotionOverlay, setShowMotionOverlay] = useState(true)
   const { toast } = useToast()
   const lastAlertRef = useRef<string | null>(null)
   const [nodeGraphData, setNodeGraphData] = useState<{
@@ -132,6 +123,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const processingCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const processingIntervalRef = useRef<number | null>(null)
   const processingAnimationRef = useRef<number | null>(null)
+  const processingInFlightRef = useRef(false)
   const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
 
   // Memoize the graph change callback
@@ -153,21 +145,16 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
 
   useEffect(() => {
     const config = providerCoordinator.getConfig()
-    const status = providerCoordinator.getStatus()
     if (config.yolov8) {
-      setYoloModelPath(config.yolov8.modelPath || "/models/yolov8n.onnx")
-      setYoloInputSize(config.yolov8.inputSize || 640)
-      setYoloConfidence(config.yolov8.confidenceThreshold ?? 0.5)
+      applyYoloConfig({
+        enabled: true,
+        modelPath: config.yolov8.modelPath || "/models/yolov8n.onnx",
+        inputSize: config.yolov8.inputSize || 640,
+        confidenceThreshold: config.yolov8.confidenceThreshold ?? 0.5,
+      }).catch((error) => {
+        console.error("Failed to update YOLOv8 config:", error)
+      })
     }
-    setDetectionStatus(status.detection)
-    applyYoloConfig({
-      enabled: true,
-      modelPath: config.yolov8?.modelPath || "/models/yolov8n.onnx",
-      inputSize: config.yolov8?.inputSize || 640,
-      confidenceThreshold: config.yolov8?.confidenceThreshold ?? 0.5,
-    }).catch((error) => {
-      console.error("Failed to update YOLOv8 config:", error)
-    })
   }, [])
 
 
@@ -188,7 +175,6 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       }
       saveProviderConfig({ ...providerCoordinator.getConfig(), ...configUpdate })
       await providerCoordinator.updateConfig(configUpdate)
-      setDetectionStatus(providerCoordinator.getStatus().detection)
     },
     []
   )
@@ -201,87 +187,10 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       // Initialize frame processor
       frameProcessorRef.current = new FrameProcessor(feedId)
       
-      // Clear events - will be populated by video analysis
+      // Clear events - only analyze nodes will populate the timeline via Gemini
       setEvents([])
-      setHasAnalyzed(false)
-
-      // Create initial nodes for jewelry store (camera-1) - only once
-      if (feedId === "camera-1" && !nodesCreatedRef.current.has(feedId)) {
-        nodesCreatedRef.current.add(feedId)
-        // Wait a bit for NodeCanvas to be ready
-        setTimeout(() => {
-          if (nodeCanvasRef.current) {
-            nodeCanvasRef.current.createNodes([
-              {
-                type: "analyze",
-                title: "Robbery Detection",
-                config: {
-                  prompt: "This camera should detect and analyze robberies inside the jewlery store",
-                  sensitivity: "high",
-                },
-              },
-              {
-                type: "action",
-                title: "Call Alert",
-                config: {
-                  option: "call",
-                  description: "Call this phone number +17609843627 and alert the recipient that the store is being robbed!",
-                },
-              },
-            ])
-          }
-        }, 500)
-      } else if (feedId !== "camera-1") {
-        // Reset the flag when switching away from camera-1
-        nodesCreatedRef.current.delete("camera-1")
-      }
     }
   }, [feedId])
-
-  const handleAnalyzeVideo = useCallback(async () => {
-    if (!feed || isAnalyzing) return
-
-    setIsAnalyzing(true)
-    toast({
-      title: "Analyzing video",
-      description: "Using Gemini to extract events from the video...",
-    })
-
-    try {
-      const eventData = await analyzeVideoWithGemini(feed.videoUrl, duration, feedId)
-      const videoEvents = convertToVideoEvents(eventData, feedId)
-      setEvents(videoEvents)
-      setHasAnalyzed(true)
-      
-      toast({
-        title: "Analysis complete",
-        description: `Found ${videoEvents.length} events in the video`,
-      })
-    } catch (error: any) {
-      console.error("Video analysis failed:", error)
-      toast({
-        title: "Analysis failed",
-        description: error.message || "Failed to analyze video. Using fallback events.",
-        variant: "destructive",
-      })
-      // Use fallback events
-      const fallbackEvents = convertToVideoEvents(
-        await analyzeVideoWithGemini(feed.videoUrl, duration, feedId),
-        feedId
-      )
-      setEvents(fallbackEvents)
-      setHasAnalyzed(true)
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }, [feed, feedId, duration, toast])
-
-  // Analyze video when duration is available for camera-1 through camera-9
-  useEffect(() => {
-    if ((feed?.id === "camera-1" || feed?.id === "camera-2" || feed?.id === "camera-3" || feed?.id === "camera-4" || feed?.id === "camera-5" || feed?.id === "camera-6" || feed?.id === "camera-7" || feed?.id === "camera-8" || feed?.id === "camera-9") && duration > 0 && !hasAnalyzed && !isAnalyzing) {
-      handleAnalyzeVideo()
-    }
-  }, [feed?.id, duration, hasAnalyzed, isAnalyzing, handleAnalyzeVideo])
 
   // Frame processing loop
   useEffect(() => {
@@ -297,11 +206,10 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
 
     const processFrame = async () => {
       if (video.paused || !video.readyState || !video.videoWidth || !video.videoHeight) {
-        if (video.paused) console.debug("[CameraDetailView] Video is paused, skipping frame")
-        if (!video.readyState) console.debug("[CameraDetailView] Video not ready, skipping frame")
-        if (!video.videoWidth || !video.videoHeight) console.debug("[CameraDetailView] Video dimensions not available")
         return
       }
+      if (processingInFlightRef.current) return
+      processingInFlightRef.current = true
 
       try {
         // Set canvas size to video dimensions
@@ -323,16 +231,12 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         } catch (error) {
           // CORS error - skip processing
-          console.warn("[CameraDetailView] CORS error, skipping frame processing:", error)
           return
         }
 
         if (!imageData) {
-          console.warn("[CameraDetailView] Could not get image data from canvas")
           return
         }
-
-        console.debug(`[CameraDetailView] Processing frame at ${video.currentTime.toFixed(2)}s`)
 
         // Get analyze nodes from the graph
         const analyzeNodes = nodeGraphData.nodes
@@ -342,11 +246,6 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             sensitivity: node.config?.sensitivity,
           }))
           .filter((node) => node.prompt)
-
-        // Debug: Log analyze nodes
-        if (analyzeNodes.length > 0) {
-          console.debug(`[FrameProcessor] Processing with ${analyzeNodes.length} analyze node(s)`, analyzeNodes)
-        }
 
         // Process frame with all providers
         const result = await processor.processFrame(imageData, video.currentTime, {
@@ -358,11 +257,6 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           analyzeNodes,
         })
 
-        // Debug: Log events generated
-        if (result.events.length > 0) {
-          console.debug(`[FrameProcessor] Generated ${result.events.length} event(s)`, result.events)
-        }
-
         // Update events state (deduplicate and merge)
         setEvents((prevEvents) => {
           const eventMap = new Map(prevEvents.map((e) => [e.id, e]))
@@ -372,15 +266,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             eventMap.set(event.id, event)
           })
 
-          const updatedEvents = Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
-          
-          // Debug: Log if we have new events
-          if (result.events.length > 0) {
-            console.log(`[CameraDetailView] ✅ Added ${result.events.length} event(s) to timeline. Total events: ${updatedEvents.length}`)
-          }
-
-          // Return sorted by timestamp
-          return updatedEvents
+          return Array.from(eventMap.values()).sort((a, b) => a.timestamp - b.timestamp)
         })
 
         const latestAlert = result.events
@@ -397,6 +283,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
         }
       } catch (error) {
         console.error("Frame processing error:", error)
+      } finally {
+        processingInFlightRef.current = false
       }
     }
 
@@ -462,6 +350,16 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                 feedName={feed.name}
                 onTimeUpdate={setCurrentTime}
                 onDurationChange={setDuration}
+                overlay={
+                  <>
+                    <div className="absolute bottom-4 left-4 bg-zinc-900/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-zinc-800 text-xs text-emerald-400">
+                      YOLOv8 enabled
+                    </div>
+                    <div className="absolute bottom-4 right-4 bg-zinc-900/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-zinc-800 text-xs text-zinc-400">
+                      Alerts: {events.filter((event) => !event.overlayOnly && event.type === "alert").length}
+                    </div>
+                  </>
+                }
               />
               {/* Bounding Box Overlay */}
               {videoElement && videoDimensions.width > 0 && (
@@ -471,88 +369,24 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                   currentTime={currentTime}
                   videoWidth={videoDimensions.width}
                   videoHeight={videoDimensions.height}
+                  showMotionOverlay={showMotionOverlay}
                 />
               )}
-              {/* Processing Status */}
-              <div className="absolute bottom-4 right-4 bg-zinc-900/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-zinc-800 text-xs text-zinc-400 z-20">
-                Alerts: {events.filter((event) => !event.overlayOnly && event.type === "alert").length}
-              </div>
             </div>
             {/* Node Graph Area */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-lg font-semibold text-white">Node Graph</p>
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-white">YOLOv8 Detection</p>
-                  <span className="text-xs px-3 py-1 rounded bg-zinc-800 text-zinc-300">
-                    Enabled
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-400">
-                  Status: {detectionStatus}
-                </div>
-                <div className="grid grid-cols-1 gap-2">
-                  <Input
-                    value={yoloModelPath}
-                    onChange={(event) => setYoloModelPath(event.target.value)}
-                    onBlur={() => {
-                      applyYoloConfig({
-                        enabled: yoloEnabled,
-                        modelPath: yoloModelPath,
-                        inputSize: yoloInputSize,
-                        confidenceThreshold: yoloConfidence,
-                      }).catch((error) => {
-                        console.error("Failed to update YOLOv8 config:", error)
-                      })
-                    }}
-                    placeholder="/models/yolov8n.onnx"
-                    className="h-8 text-xs"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      min={320}
-                      step={32}
-                      value={yoloInputSize}
-                      onChange={(event) => setYoloInputSize(Number(event.target.value))}
-                      onBlur={() => {
-                        applyYoloConfig({
-                          enabled: yoloEnabled,
-                          modelPath: yoloModelPath,
-                          inputSize: yoloInputSize,
-                          confidenceThreshold: yoloConfidence,
-                        }).catch((error) => {
-                          console.error("Failed to update YOLOv8 config:", error)
-                        })
-                      }}
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={yoloConfidence}
-                      onChange={(event) => setYoloConfidence(Number(event.target.value))}
-                      onBlur={() => {
-                        applyYoloConfig({
-                          enabled: yoloEnabled,
-                          modelPath: yoloModelPath,
-                          inputSize: yoloInputSize,
-                          confidenceThreshold: yoloConfidence,
-                        }).catch((error) => {
-                          console.error("Failed to update YOLOv8 config:", error)
-                        })
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-                <p className="text-[11px] text-zinc-500">
-                  Place the ONNX model in `public/models` and use a public path.
-                </p>
+                <button
+                  onClick={() => setShowMotionOverlay((prev) => !prev)}
+                  className={`text-xs px-3 py-1.5 rounded border transition ${
+                    showMotionOverlay
+                      ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                      : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                  }`}
+                >
+                  Motion Overlay: {showMotionOverlay ? "On" : "Off"}
+                </button>
               </div>
               <NodeCanvas 
                 ref={nodeCanvasRef}
@@ -587,8 +421,6 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                 }
                 setCurrentTime(time)
               }}
-              onAnalyze={handleAnalyzeVideo}
-              isAnalyzing={isAnalyzing}
             />
           </div>
           <div className="flex-1 min-h-0 border-t border-zinc-800">

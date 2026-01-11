@@ -41,6 +41,17 @@ export class FrameProcessor {
     inFlight: false,
     lastSummary: "",
   }
+  private allowedLabelsByVideoId: Record<string, Set<string>> = {
+    "camera-1": new Set(["person"]),
+    "camera-2": new Set(["person"]),
+    "camera-3": new Set(["person"]),
+    "camera-4": new Set(["person", "fire"]),
+    "camera-5": new Set(["person"]),
+    "camera-6": new Set(["dog", "cat", "person"]),
+    "camera-7": new Set(["person"]),
+    "camera-8": new Set(["person", "car", "truck", "bus", "umbrella"]),
+    "camera-9": new Set(["person"]),
+  }
 
   constructor(videoId: string) {
     this.videoId = videoId
@@ -129,6 +140,12 @@ export class FrameProcessor {
       const label = detections.labels[i]
       const confidence = detections.confidences[i]
       const box = detections.boxes[i]
+      const allowedLabels = this.videoId ? this.allowedLabelsByVideoId[this.videoId] : undefined
+      const nonPreferredThreshold = 0.9
+
+      if (allowedLabels && !allowedLabels.has(label) && confidence < nonPreferredThreshold) {
+        continue
+      }
 
       // Map YOLOv8 labels to event types
       let eventType: VideoEvent["type"] = "motion"
