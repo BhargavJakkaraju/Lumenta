@@ -395,6 +395,10 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
     motionCanvasRef.current = canvas
 
     const processMotionFrame = () => {
+      if (document.hidden || video.paused || video.ended) {
+        motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+        return
+      }
       if (!video.readyState || !video.videoWidth || !video.videoHeight) {
         motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
         return
