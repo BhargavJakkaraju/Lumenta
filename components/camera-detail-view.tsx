@@ -22,7 +22,7 @@ interface CameraDetailViewProps {
 export const STOCK_FEEDS: CameraFeed[] = [
   {
     id: "camera-1",
-    name: "Main Entrance",
+    name: "Jewelry Store",
     videoUrl: "/videos/camera-1.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 85,
@@ -31,7 +31,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-2",
-    name: "Parking Lot",
+    name: "Bedroom",
     videoUrl: "/videos/camera-2.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 45,
@@ -40,7 +40,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-3",
-    name: "Warehouse Floor",
+    name: "Front Porch",
     videoUrl: "/videos/camera-3.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 92,
@@ -49,7 +49,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-4",
-    name: "Loading Dock",
+    name: "Warehouse 1",
     videoUrl: "/videos/camera-4.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 67,
@@ -58,7 +58,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-5",
-    name: "Security Office",
+    name: "Living Room",
     videoUrl: "/videos/camera-5.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 23,
@@ -67,7 +67,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-6",
-    name: "Reception Area",
+    name: "Backyard Patio",
     videoUrl: "/videos/camera-6.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 78,
@@ -76,7 +76,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-7",
-    name: "Front Lobby",
+    name: "Warehouse 2",
     videoUrl: "/videos/camera-7.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 56,
@@ -85,7 +85,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-8",
-    name: "Back Entrance",
+    name: "City Intersection",
     videoUrl: "/videos/camera-8.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 72,
@@ -94,7 +94,7 @@ export const STOCK_FEEDS: CameraFeed[] = [
   },
   {
     id: "camera-9",
-    name: "Elevator Bay",
+    name: "Pool",
     videoUrl: "/videos/camera-9.mp4", // Place your video files in public/videos/
     isPlaying: true,
     activity: 34,
