@@ -16,8 +16,8 @@ export class LocalDetectionProvider implements DetectionProvider {
   private readonly targetHeight = 360
   private readonly blockSize = 12
   private readonly diffThreshold = 24
-  private readonly maxDots = 40
-  private readonly minDotDistance = 16
+  private readonly maxDots = 18
+  private readonly minDotDistance = 28
   private readonly dotSize = 3
   private readonly sampleStride = 2
 

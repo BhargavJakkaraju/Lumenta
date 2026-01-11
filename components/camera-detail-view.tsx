@@ -385,6 +385,7 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       return
     }
 
+    const motionTrailSeconds = 1.5
     const video = videoElement
     const provider = motionProviderRef.current
     const canvas = document.createElement("canvas")
@@ -430,7 +431,11 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             box,
             overlayOnly: true,
           }))
-          setMotionEvents(nextEvents)
+          setMotionEvents((prev) => {
+            const cutoff = Math.max(0, timestamp - motionTrailSeconds)
+            const merged = prev.length ? [...prev, ...nextEvents] : nextEvents
+            return merged.filter((event) => event.timestamp >= cutoff)
+          })
         })
         .catch(() => null)
         .finally(() => {
