@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Play, Pause, RotateCcw, X } from "lucide-react"
+import { Play, Pause } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { CameraFeed, Incident } from "@/types/lumenta"
 
@@ -11,8 +11,6 @@ interface CameraTileProps {
   privacyMode: boolean
   onSelect: () => void
   onToggle: () => void
-  onRestart: () => void
-  onRemove: () => void
   onAddIncident: (incident: Incident) => void
   onUpdateMetrics: (feedId: string, metrics: Partial<CameraFeed>) => void
 }
@@ -23,8 +21,6 @@ export function CameraTile({
   privacyMode,
   onSelect,
   onToggle,
-  onRestart,
-  onRemove,
   onAddIncident,
   onUpdateMetrics,
 }: CameraTileProps) {
@@ -37,12 +33,16 @@ export function CameraTile({
 
   // Video playback control
   useEffect(() => {
-    if (videoRef.current) {
-      if (feed.isPlaying) {
-        videoRef.current.play()
-      } else {
-        videoRef.current.pause()
-      }
+    const video = videoRef.current
+    if (!video) return
+
+    if (feed.isPlaying) {
+      video.play().catch((error) => {
+        // Silently handle play errors (e.g., autoplay restrictions)
+        console.debug("Video play error:", error)
+      })
+    } else {
+      video.pause()
     }
   }, [feed.isPlaying])
 
@@ -202,43 +202,17 @@ export function CameraTile({
       </div>
 
       {/* Bottom Controls */}
-      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-auto">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle()
-            }}
-            className="h-7 w-7 p-0 bg-zinc-900/90 hover:bg-zinc-800 text-white"
-          >
-            {feed.isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (videoRef.current) {
-                videoRef.current.currentTime = 0
-              }
-            }}
-            className="h-7 w-7 p-0 bg-zinc-900/90 hover:bg-zinc-800 text-white"
-          >
-            <RotateCcw className="w-3 h-3" />
-          </Button>
-        </div>
+      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-start pointer-events-auto">
         <Button
           variant="ghost"
           size="sm"
           onClick={(e) => {
             e.stopPropagation()
-            onRemove()
+            onToggle()
           }}
-          className="h-7 w-7 p-0 bg-zinc-900/90 hover:bg-red-900 text-white"
+          className="h-7 w-7 p-0 bg-zinc-900/90 hover:bg-zinc-800 text-white"
         >
-          <X className="w-3 h-3" />
+          {feed.isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
         </Button>
       </div>
 

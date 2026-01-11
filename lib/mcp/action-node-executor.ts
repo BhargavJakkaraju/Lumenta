@@ -221,6 +221,7 @@ async function executeCallAction(params: Record<string, any>): Promise<ActionExe
       name: "call_phone",
       arguments: {
         to: normalizedPhone,
+        message: params.message, // Message/prompt extracted by Gemini
         assistantId: params.assistantId, // Optional, can be configured
       },
     }

@@ -3,30 +3,22 @@
 import type React from "react"
 
 import { useRef } from "react"
-import { Upload, Play, Pause, Trash2, Shield, ShieldOff } from "lucide-react"
+import { Upload, Play, Pause } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
 interface ConsoleTopBarProps {
   feedCount: number
-  incidentCount: number
-  privacyMode: boolean
   isPlaying: boolean
-  onTogglePrivacy: () => void
   onAddClip: (file: File) => void
   onPlayPauseAll: () => void
-  onClearIncidents: () => void
 }
 
 export function ConsoleTopBar({
   feedCount,
-  incidentCount,
-  privacyMode,
   isPlaying,
-  onTogglePrivacy,
   onAddClip,
   onPlayPauseAll,
-  onClearIncidents,
 }: ConsoleTopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -50,11 +42,6 @@ export function ConsoleTopBar({
             <span className="text-white font-medium">{feedCount}</span>
             <span>feeds</span>
           </div>
-          <div className="w-1 h-1 rounded-full bg-zinc-700" />
-          <div className="flex items-center gap-1">
-            <span className="text-white font-medium">{incidentCount}</span>
-            <span>open</span>
-          </div>
         </div>
       </div>
 
@@ -67,7 +54,7 @@ export function ConsoleTopBar({
           className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white"
         >
           <Upload className="w-4 h-4 mr-2" />
-          Add Clip
+          Add Camera
         </Button>
         <Button
           variant="outline"
@@ -76,26 +63,6 @@ export function ConsoleTopBar({
           className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white"
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onClearIncidents}
-          className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onTogglePrivacy}
-          className={`border-zinc-700 ${
-            privacyMode
-              ? "bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/30"
-              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-          }`}
-        >
-          {privacyMode ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
         </Button>
       </div>
     </div>
