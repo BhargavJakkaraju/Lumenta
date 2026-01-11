@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video-player"
 import { EventTimeline } from "@/components/event-timeline"
+import { analyzeVideoWithGemini, convertToVideoEvents } from "@/lib/video-analyzer"
 import { VideoOverlay } from "@/components/video-overlay"
 import { NodeCanvas, type Node, type NodeCanvasHandle } from "@/components/nodeGraph/NodeCanvas"
 import { WorkflowChatPanel } from "@/components/WorkflowChatPanel"
@@ -112,6 +113,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
   const [privacyMode] = useState(true)
   const [showMotionOverlay, setShowMotionOverlay] = useState(true)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [hasAnalyzed, setHasAnalyzed] = useState(false)
   const { toast } = useToast()
   const lastAlertRef = useRef<string | null>(null)
   const [nodeGraphData, setNodeGraphData] = useState<{
@@ -190,10 +193,56 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       // Initialize frame processor
       frameProcessorRef.current = new FrameProcessor(feedId)
       
-      // Clear events - only analyze nodes will populate the timeline via Gemini
+      // Clear events - will be populated by video analysis
       setEvents([])
+      setHasAnalyzed(false)
     }
   }, [feedId])
+
+  const handleAnalyzeVideo = useCallback(async () => {
+    if (!feed || isAnalyzing) return
+
+    setIsAnalyzing(true)
+    toast({
+      title: "Analyzing video",
+      description: "Using Gemini to extract events from the video...",
+    })
+
+    try {
+      const eventData = await analyzeVideoWithGemini(feed.videoUrl, duration, feedId)
+      const videoEvents = convertToVideoEvents(eventData, feedId)
+      setEvents(videoEvents)
+      setHasAnalyzed(true)
+      
+      toast({
+        title: "Analysis complete",
+        description: `Found ${videoEvents.length} events in the video`,
+      })
+    } catch (error: any) {
+      console.error("Video analysis failed:", error)
+      toast({
+        title: "Analysis failed",
+        description: error.message || "Failed to analyze video. Using fallback events.",
+        variant: "destructive",
+      })
+      // Use fallback events
+      const fallbackEvents = convertToVideoEvents(
+        await analyzeVideoWithGemini(feed.videoUrl, duration, feedId),
+        feedId
+      )
+      setEvents(fallbackEvents)
+      setHasAnalyzed(true)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [feed, feedId, duration, toast])
+
+  // Analyze video when duration is available for camera-1 (Main Entrance)
+  useEffect(() => {
+    if (feed?.id === "camera-1" && duration > 0 && !hasAnalyzed && !isAnalyzing) {
+      handleAnalyzeVideo()
+    }
+  }, [feed?.id, duration, hasAnalyzed, isAnalyzing, handleAnalyzeVideo])
 
   // Frame processing loop
   useEffect(() => {
@@ -430,6 +479,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
                 }
                 setCurrentTime(time)
               }}
+              onAnalyze={handleAnalyzeVideo}
+              isAnalyzing={isAnalyzing}
             />
           </div>
           <div className="flex-1 min-h-0 border-t border-zinc-800">
