@@ -75,7 +75,7 @@ export class FrameProcessor {
     // Step 2: Object Detection (YOLOv8 or local)
     const detectionProvider = providerCoordinator.getDetectionProvider()
     const shouldDetect = options.enableObjectDetection !== false
-    const detectionIntervalMs = 800
+    const detectionIntervalMs = 1200
     const detectionDue = Date.now() - this.lastDetectionAt >= detectionIntervalMs
     const detections = shouldDetect
       ? detectionDue

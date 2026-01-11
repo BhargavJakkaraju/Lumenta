@@ -17,15 +17,30 @@ export function LogsView({ incidents }: LogsViewProps) {
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
 
+  const getIncidentType = (incident: Incident): string => {
+    if (incident.type) return incident.type
+    const description = incident.description.toLowerCase()
+    if (description.includes("person")) return "person"
+    if (description.includes("vehicle") || description.includes("car") || description.includes("truck") || description.includes("bus")) {
+      return "vehicle"
+    }
+    if (description.includes("object") || description.includes("package")) return "object"
+    if (description.includes("alert") || description.includes("incident") || description.includes("suspicious")) {
+      return "alert"
+    }
+    return "motion"
+  }
+
   const filteredIncidents = useMemo(() => {
     return incidents.filter((incident) => {
+      const incidentType = getIncidentType(incident)
       const matchesSearch =
         searchQuery === "" ||
-        incident.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        incidentType.toLowerCase().includes(searchQuery.toLowerCase()) ||
         incident.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         incident.feedId.toLowerCase().includes(searchQuery.toLowerCase())
 
-      const matchesType = filterType === "all" || incident.type === filterType
+      const matchesType = filterType === "all" || incidentType === filterType
       const matchesStatus = filterStatus === "all" || incident.status === filterStatus
 
       return matchesSearch && matchesType && matchesStatus
@@ -56,8 +71,37 @@ export function LogsView({ incidents }: LogsViewProps) {
   }
 
   const uniqueTypes = useMemo(() => {
-    return Array.from(new Set(incidents.map((i) => i.type)))
+    return Array.from(new Set(incidents.map((i) => getIncidentType(i))))
   }, [incidents])
+
+  const summaryStats = useMemo(() => {
+    const now = Date.now()
+    const lastHour = now - 60 * 60 * 1000
+    const lastDay = now - 24 * 60 * 60 * 1000
+
+    const stats = {
+      total: filteredIncidents.length,
+      open: 0,
+      resolved: 0,
+      lastHour: 0,
+      lastDay: 0,
+      byType: new Map<string, number>(),
+    }
+
+    filteredIncidents.forEach((incident) => {
+      const type = getIncidentType(incident)
+      stats.byType.set(type, (stats.byType.get(type) || 0) + 1)
+
+      if (incident.status === "open") stats.open += 1
+      if (incident.status === "resolved") stats.resolved += 1
+
+      const timestamp = new Date(incident.timestamp).getTime()
+      if (timestamp >= lastHour) stats.lastHour += 1
+      if (timestamp >= lastDay) stats.lastDay += 1
+    })
+
+    return stats
+  }, [filteredIncidents])
 
   return (
     <div className="p-6 space-y-6 h-full w-full max-w-none">
@@ -68,6 +112,62 @@ export function LogsView({ incidents }: LogsViewProps) {
             View all past detections and incidents ({filteredIncidents.length} total)
           </p>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="!px-4 !py-3">
+            <CardTitle className="text-sm text-zinc-300">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent className="!px-4 !py-3 space-y-1 text-sm text-zinc-400">
+            <div className="flex items-center justify-between">
+              <span>Last hour</span>
+              <span className="text-white">{summaryStats.lastHour}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Last 24h</span>
+              <span className="text-white">{summaryStats.lastDay}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Total</span>
+              <span className="text-white">{summaryStats.total}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="!px-4 !py-3">
+            <CardTitle className="text-sm text-zinc-300">Status</CardTitle>
+          </CardHeader>
+          <CardContent className="!px-4 !py-3 space-y-1 text-sm text-zinc-400">
+            <div className="flex items-center justify-between">
+              <span>Open</span>
+              <span className="text-white">{summaryStats.open}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Resolved</span>
+              <span className="text-white">{summaryStats.resolved}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="!px-4 !py-3">
+            <CardTitle className="text-sm text-zinc-300">Top Types</CardTitle>
+          </CardHeader>
+          <CardContent className="!px-4 !py-3 space-y-1 text-sm text-zinc-400">
+            {Array.from(summaryStats.byType.entries())
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 4)
+              .map(([type, count]) => (
+                <div key={type} className="flex items-center justify-between">
+                  <span className="capitalize">{type}</span>
+                  <span className="text-white">{count}</span>
+                </div>
+              ))}
+            {summaryStats.byType.size === 0 && (
+              <span className="text-zinc-500">No detections</span>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex gap-4">
@@ -126,7 +226,7 @@ export function LogsView({ incidents }: LogsViewProps) {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {getTypeBadge(incident.type)}
+                      {getTypeBadge(getIncidentType(incident))}
                       {getStatusBadge(incident.status)}
                       <span className="text-xs text-zinc-500">
                         Feed: {incident.feedId.slice(0, 8)}...
@@ -151,4 +251,3 @@ export function LogsView({ incidents }: LogsViewProps) {
     </div>
   )
 }
-

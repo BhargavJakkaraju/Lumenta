@@ -78,15 +78,12 @@ export function ObjectDetections({ events, currentTime, enabled = true }: Object
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto !px-2 !py-1.5 min-h-0">
-        {!enabled ? (
+        {detections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Activity className="size-12 text-zinc-600 mb-4" />
-            <p className="text-zinc-400">Object detection disabled</p>
-          </div>
-        ) : detections.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <Activity className="size-12 text-zinc-600 mb-4" />
-            <p className="text-zinc-400">No detections yet</p>
+            <p className="text-zinc-400">
+              {enabled ? "No detections yet" : "Object detection paused"}
+            </p>
           </div>
         ) : (
           <div className="space-y-1.5">

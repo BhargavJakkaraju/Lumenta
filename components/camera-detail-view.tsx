@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ObjectDetections } from "@/components/object-detections"
 import type { Edge } from "@/components/nodeGraph/edges"
 import { FrameProcessor } from "@/lib/frame-processor"
+import { LocalDetectionProvider } from "@/lib/providers/detection-provider"
 import { providerCoordinator } from "@/lib/providers"
 import { saveProviderConfig } from "@/lib/providers/config"
 import type { CameraFeed, VideoEvent } from "@/types/lumenta"
@@ -106,12 +107,14 @@ export const STOCK_FEEDS: CameraFeed[] = [
 export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const [feed, setFeed] = useState<CameraFeed | null>(null)
   const [events, setEvents] = useState<VideoEvent[]>([])
+  const [motionEvents, setMotionEvents] = useState<VideoEvent[]>([])
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 })
   const [privacyMode] = useState(true)
   const [showMotionOverlay, setShowMotionOverlay] = useState(true)
+  const [enableObjectDetection, setEnableObjectDetection] = useState(true)
   const { toast } = useToast()
   const lastAlertRef = useRef<string | null>(null)
   const [nodeGraphData, setNodeGraphData] = useState<{
@@ -124,6 +127,11 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
   const processingIntervalRef = useRef<number | null>(null)
   const processingAnimationRef = useRef<number | null>(null)
   const processingInFlightRef = useRef(false)
+  const motionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const motionAnimationRef = useRef<number | null>(null)
+  const motionProviderRef = useRef(new LocalDetectionProvider())
+  const motionPrevFrameRef = useRef<ImageData | null>(null)
+  const lastForcedDetectionRef = useRef(0)
   const nodeCanvasRef = useRef<NodeCanvasHandle | null>(null)
 
   // Memoize the graph change callback
@@ -149,8 +157,8 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
       applyYoloConfig({
         enabled: true,
         modelPath: config.yolov8.modelPath || "/models/yolov8n.onnx",
-        inputSize: config.yolov8.inputSize || 640,
-        confidenceThreshold: config.yolov8.confidenceThreshold ?? 0.5,
+        inputSize: config.yolov8.inputSize || 416,
+        confidenceThreshold: config.yolov8.confidenceThreshold ?? 0.6,
       }).catch((error) => {
         console.error("Failed to update YOLOv8 config:", error)
       })
@@ -251,14 +259,22 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
           .filter((node) => node.prompt)
 
         // Process frame with all providers
+        const now = Date.now()
+        const motionActive = showMotionOverlay ? motionEvents.length >= 6 : false
+        const forceDetect = now - lastForcedDetectionRef.current > 2000
+        const shouldDetect = enableObjectDetection && (motionActive || forceDetect)
+        if (shouldDetect && forceDetect) {
+          lastForcedDetectionRef.current = now
+        }
+
         const result = await processor.processFrame(imageData, video.currentTime, {
           enableFaceRecognition: !privacyMode,
           enableVideoUnderstanding: true,
           enableReasoning: true,
           privacyMode,
           videoId: feedId,
-          enableObjectDetection: showMotionOverlay,
-          enableMotionOverlay: showMotionOverlay,
+          enableObjectDetection: shouldDetect,
+          enableMotionOverlay: false,
           analyzeNodes,
         })
 
@@ -311,7 +327,79 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
         cancelAnimationFrame(processingAnimationRef.current)
       }
     }
-  }, [feed, videoElement, feedId, privacyMode, nodeGraphData])
+  }, [feed, videoElement, feedId, privacyMode, nodeGraphData, enableObjectDetection, showMotionOverlay])
+
+  // Motion-only overlay loop (runs every frame)
+  useEffect(() => {
+    if (!videoElement || !showMotionOverlay) {
+      setMotionEvents([])
+      return
+    }
+
+    const video = videoElement
+    const provider = motionProviderRef.current
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    motionCanvasRef.current = canvas
+
+    const processMotionFrame = () => {
+      if (!video.readyState || !video.videoWidth || !video.videoHeight) {
+        motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+        return
+      }
+
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      let imageData: ImageData | null = null
+      try {
+        imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      } catch {
+        motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+        return
+      }
+
+      const detections = provider.detectWithPrevious
+        ? provider.detectWithPrevious(imageData, motionPrevFrameRef.current)
+        : Promise.resolve({ boxes: [], labels: [], confidences: [] })
+
+      motionPrevFrameRef.current = imageData
+
+      detections
+        .then((result) => {
+          const timestamp = video.currentTime
+          const nextEvents = result.boxes.map((box, idx) => ({
+            id: `${feedId}-motion-${timestamp}-${idx}`,
+            timestamp,
+            type: "motion" as const,
+            severity: "low" as const,
+            description: "Motion detected",
+            confidence: result.confidences[idx] ?? 0.5,
+            box,
+            overlayOnly: true,
+          }))
+          setMotionEvents(nextEvents)
+        })
+        .catch(() => null)
+        .finally(() => {
+          motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+        })
+    }
+
+    motionAnimationRef.current = window.requestAnimationFrame(processMotionFrame)
+
+    return () => {
+      if (motionAnimationRef.current) {
+        cancelAnimationFrame(motionAnimationRef.current)
+      }
+      motionAnimationRef.current = null
+      motionPrevFrameRef.current = null
+      setMotionEvents([])
+    }
+  }, [videoElement, showMotionOverlay, feedId])
 
   // Get video element reference from VideoPlayer
   useEffect(() => {
@@ -374,7 +462,11 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
               {videoElement && videoDimensions.width > 0 && (
                 <VideoOverlay
                   videoElement={videoElement}
-                  events={events}
+                  events={
+                    showMotionOverlay
+                      ? [...events.filter((event) => !event.overlayOnly), ...motionEvents]
+                      : events.filter((event) => !event.overlayOnly)
+                  }
                   currentTime={currentTime}
                   videoWidth={videoDimensions.width}
                   videoHeight={videoDimensions.height}
@@ -386,16 +478,28 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-lg font-semibold text-white">Node Graph</p>
-                <button
-                  onClick={() => setShowMotionOverlay((prev) => !prev)}
-                  className={`text-xs px-3 py-1.5 rounded border transition ${
-                    showMotionOverlay
-                      ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                      : "bg-zinc-900 text-zinc-300 border-zinc-700"
-                  }`}
-                >
-                  Motion Overlay: {showMotionOverlay ? "On" : "Off"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowMotionOverlay((prev) => !prev)}
+                    className={`text-xs px-3 py-1.5 rounded border transition ${
+                      showMotionOverlay
+                        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+                        : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                    }`}
+                  >
+                    Motion: {showMotionOverlay ? "On" : "Off"}
+                  </button>
+                  <button
+                    onClick={() => setEnableObjectDetection((prev) => !prev)}
+                    className={`text-xs px-3 py-1.5 rounded border transition ${
+                      enableObjectDetection
+                        ? "bg-blue-500/15 text-blue-300 border-blue-500/40"
+                        : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                    }`}
+                  >
+                    Objects: {enableObjectDetection ? "On" : "Off"}
+                  </button>
+                </div>
               </div>
               <NodeCanvas 
                 ref={nodeCanvasRef}
@@ -433,12 +537,12 @@ export function CameraDetailView({ feedId }: CameraDetailViewProps) {
             />
           </div>
           <div className="flex-1 min-h-0 border-t border-zinc-800">
-            <ObjectDetections
-              events={events}
-              currentTime={currentTime}
-              enabled={showMotionOverlay}
-            />
-          </div>
+          <ObjectDetections
+            events={events}
+            currentTime={currentTime}
+            enabled={enableObjectDetection}
+          />
+        </div>
         </div>
       </div>
     </div>
