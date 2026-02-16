@@ -33,7 +33,7 @@ export function LumentaNavbar() {
         <div className="hidden md:flex items-center gap-3">
           <Link href="/console">
             <Button size="sm" className="shimmer-btn bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-4">
-              Open Console
+              Try the Demo
             </Button>
           </Link>
         </div>
@@ -59,7 +59,7 @@ export function LumentaNavbar() {
           <div className="flex flex-col gap-2">
             <Link href="/console">
               <Button className="shimmer-btn bg-white text-zinc-950 hover:bg-zinc-200 rounded-full w-full">
-                Open Console
+                Try the Demo
               </Button>
             </Link>
           </div>

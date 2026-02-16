@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { ArrowRight, Play } from "lucide-react"
+import { ArrowRight, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 const textRevealVariants = {
   hidden: { y: "100%" },
@@ -20,7 +22,24 @@ const textRevealVariants = {
 }
 
 export function LumentaHero() {
-  const [showDemoModal, setShowDemoModal] = useState(false)
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false)
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [email, setEmail] = useState("")
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleWaitlistSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    // TODO: send to your backend / waitlist API
+    setSubmitted(true)
+    setFirstName("")
+    setLastName("")
+    setEmail("")
+    setTimeout(() => {
+      setShowWaitlistModal(false)
+      setSubmitted(false)
+    }, 1500)
+  }
 
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-4 pt-24 pb-16 overflow-hidden">
@@ -88,18 +107,18 @@ export function LumentaHero() {
               size="lg"
               className="shimmer-btn bg-white text-zinc-950 hover:bg-zinc-200 rounded-full px-8 h-12 text-base font-medium shadow-lg shadow-white/10"
             >
-              Open Console
+              Try the Demo!
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </Link>
           <Button
             variant="outline"
             size="lg"
-            onClick={() => setShowDemoModal(true)}
+            onClick={() => setShowWaitlistModal(true)}
             className="rounded-full px-8 h-12 text-base font-medium border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:text-white hover:border-zinc-700 bg-transparent"
           >
-            <Play className="mr-2 w-4 h-4" />
-            Watch Demo
+            <UserPlus className="mr-2 w-4 h-4" />
+            Join the waitlist
           </Button>
         </motion.div>
 
@@ -116,18 +135,71 @@ export function LumentaHero() {
         </motion.div>
       </div>
 
-      {/* Demo Modal */}
-      <Dialog open={showDemoModal} onOpenChange={setShowDemoModal}>
+      {/* Waitlist Modal */}
+      <Dialog
+        open={showWaitlistModal}
+        onOpenChange={(open) => {
+          setShowWaitlistModal(open)
+          if (!open) setSubmitted(false)
+        }}
+      >
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
           <DialogHeader>
-            <DialogTitle>Demo Video</DialogTitle>
+            <DialogTitle>Join the waitlist</DialogTitle>
             <DialogDescription className="text-zinc-400">
-              Watch how Lumenta transforms video feeds into actionable intelligence
+              Get early access when we launch. We’ll only use your info to notify you.
             </DialogDescription>
           </DialogHeader>
-          <div className="aspect-video bg-zinc-800 rounded-lg flex items-center justify-center">
-            <p className="text-zinc-500">Demo video placeholder</p>
-          </div>
+          {submitted ? (
+            <p className="py-6 text-center text-emerald-400">Thanks! You’re on the list.</p>
+          ) : (
+            <form onSubmit={handleWaitlistSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="text-zinc-300">First name</Label>
+                  <Input
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="First name"
+                    required
+                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="text-zinc-300">Last name</Label>
+                  <Input
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Last name"
+                    required
+                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-zinc-300">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                />
+              </div>
+              <DialogFooter className="pt-2">
+                <Button
+                  type="submit"
+                  className="rounded-full bg-white text-zinc-950 hover:bg-zinc-200"
+                >
+                  Join waitlist
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </section>
