@@ -1,5 +1,3 @@
 # Lumenta
-
-## Environment
-- `MONGODB_URI`: MongoDB Atlas connection string.
-- `MONGODB_DB`: Optional database name (defaults to `lumenta`).
+- SBHacks XII: Grand Prize (2nd Place)
+- Lumenta is an AI-powered real-time video surveillance platform that analyzes multiple camera feeds to detect security incidents, safety hazards, and notable events. It combines YOLOv8 (via ONNX Runtime Web) for low-latency object detection with Google Gemini for high-level semantic reasoning, enabling intelligent event classification, severity assessment, and automated response workflows. Built as a full-stack Next.js application with MongoDB Atlas for persistent event logging and analytics, Lumenta features an interactive event timeline and a node-based automation engine that can trigger phone calls, emails, or text alerts through the Model Context Protocol (MCP).
