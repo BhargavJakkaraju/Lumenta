@@ -2,7 +2,7 @@
 
 **A privacy-first video intelligence platform that turns camera feeds into actionable signals and incidents.**
 
-Built with AI-powered detection (Gemini, YOLOv8, Twelve Labs), MCP-based integrations, and real-time incident tracking.
+Built with AI-powered detection (Gemini, YOLOv8), MCP-based integrations, and real-time incident tracking.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
